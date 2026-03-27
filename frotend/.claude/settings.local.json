@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:www.npmjs.com)",
+      "WebFetch(domain:github.com)",
+      "WebSearch",
+      "WebFetch(domain:registry.npmjs.org)",
+      "WebFetch(domain:unpkg.com)",
+      "Bash(grep -l PostgrestVersion node_modules/@supabase/postgrest-js/dist/module/*.d.ts)",
+      "Bash(npx supabase:*)"
+    ]
+  }
+}
