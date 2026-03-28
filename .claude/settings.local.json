@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(sed -i \"s/theme_color: ''#2563eb''/theme_color: ''#bc0120''/\" /c/Users/herge/Documents/Apps/logdrive-pwa/frotend/vite.config.ts)",
+      "Bash(sed -i \"s/background_color: ''#f8fafc''/background_color: ''#f3f4f6''/\" /c/Users/herge/Documents/Apps/logdrive-pwa/frotend/vite.config.ts)"
+    ]
+  }
+}

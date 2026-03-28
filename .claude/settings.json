@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(ls c:/Users/herge/Documents/Apps/logdrive-pwa/frontend/.env*)"
+    ]
+  }
+}

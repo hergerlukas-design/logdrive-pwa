@@ -11,8 +11,8 @@ export default defineConfig({
         name: 'LogDrive',
         short_name: 'LogDrive',
         description: 'Digitale Fahrtenbuch PWA',
-        theme_color: '#2563eb',
-        background_color: '#f8fafc',
+        theme_color: '#bc0120',
+        background_color: '#f3f4f6',
         display: 'standalone',
         icons: [
           {

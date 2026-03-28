@@ -1,10 +1,9 @@
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Database } from '../lib/database.types';
 
 // Typen aus der Datenbank extrahieren für sauberes TypeScript
 type Trip = Database['public']['Tables']['trips']['Row'];
-type Vehicle = Database['public']['Tables']['vehicles']['Row'];
 
 interface TripContextType {
   activeTrip: Trip | null;

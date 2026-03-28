@@ -6,6 +6,8 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
+export type ExpenseType = 'tanken' | 'laden'
+
 export interface Database {
   public: {
     Tables: {
@@ -76,6 +78,50 @@ export interface Database {
         Relationships: [
           {
             foreignKeyName: "trips_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      expenses: {
+        Row: {
+          id: string
+          vehicle_id: string
+          user_id: string
+          amount: number
+          expense_type: ExpenseType
+          project: string | null
+          date: string
+          dropbox_path: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          vehicle_id: string
+          user_id: string
+          amount: number
+          expense_type: ExpenseType
+          project?: string | null
+          date: string
+          dropbox_path?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          vehicle_id?: string
+          user_id?: string
+          amount?: number
+          expense_type?: ExpenseType
+          project?: string | null
+          date?: string
+          dropbox_path?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expenses_vehicle_id_fkey"
             columns: ["vehicle_id"]
             isOneToOne: false
             referencedRelation: "vehicles"
