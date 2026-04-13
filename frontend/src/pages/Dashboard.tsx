@@ -1,17 +1,16 @@
 import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import type { Database } from '../lib/database.types'
+import type { Database, TripPurpose } from '../lib/database.types'
 import { useTrip }  from '../context/TripContext'
 import { useAuth }  from '../context/AuthContext'
-import { isDropboxConnected, startDropboxLogin, logoutDropbox, switchDropboxAccount, getDropboxFolder, setDropboxFolder } from '../lib/dropboxClient'
-import { useUploadQueue } from '../hooks/useUploadQueue'
+import { buildFahrtenbuchPdf } from '../lib/pdfBuilder'
 
 type Vehicle = Database['public']['Tables']['vehicles']['Row']
 type Trip    = Database['public']['Tables']['trips']['Row']
 type Expense = Database['public']['Tables']['expenses']['Row']
 
-type Tab = 'fahrt' | 'ausgabe' | 'einstellungen'
+type Tab = 'fahrt' | 'ausgabe' | 'historie' | 'einstellungen'
 
 function toDateTimeLocal(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0')
@@ -22,20 +21,21 @@ export const Dashboard: React.FC = () => {
   const { activeTrip, isLoadingActiveTrip, checkActiveTrip, clearActiveTrip } = useTrip()
   const { user }    = useAuth()
   const navigate    = useNavigate()
+  const { vehicleId: nfcVehicleId } = useParams<{ vehicleId?: string }>()
   const [tab, setTab] = useState<Tab>('fahrt')
-  const { pendingCount } = useUploadQueue()
-
   // ── Fahrzeuge ─────────────────────────────────────────────────────────────
   const [vehicles,         setVehicles]         = useState<Vehicle[]>([])
   const [selectedVehicleId, setSelectedVehicleId] = useState('')
   const [isLoadingVehicles, setIsLoadingVehicles] = useState(true)
 
   // ── Fahrt-Formular ────────────────────────────────────────────────────────
-  const [startKm,       setStartKm]       = useState<number | ''>('')
-  const [endKm,         setEndKm]         = useState<number | ''>('')
-  const [startLocation, setStartLocation] = useState('')
-  const [endLocation,   setEndLocation]   = useState('')
-  const [tripDateTime,  setTripDateTime]  = useState(() => toDateTimeLocal(new Date()))
+  const [startKm,         setStartKm]         = useState<number | ''>('')
+  const [endKm,           setEndKm]           = useState<number | ''>('')
+  const [startLocation,   setStartLocation]   = useState('')
+  const [endLocation,     setEndLocation]     = useState('')
+  const [tripPurpose,     setTripPurpose]     = useState<TripPurpose>('dienstlich')
+  const [businessPartner, setBusinessPartner] = useState('')
+  const [tripDateTime,    setTripDateTime]    = useState(() => toDateTimeLocal(new Date()))
   const [isFetchingMileage, setIsFetchingMileage] = useState(false)
   const [isSubmitting,      setIsSubmitting]      = useState(false)
   const [errorMsg,          setErrorMsg]          = useState<string | null>(null)
@@ -43,19 +43,44 @@ export const Dashboard: React.FC = () => {
   // ── Historie ──────────────────────────────────────────────────────────────
   const [pastTrips,        setPastTrips]        = useState<Trip[]>([])
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
-  const [editingTripId,    setEditingTripId]    = useState<string | null>(null)
-  const [editDateTime,     setEditDateTime]     = useState('')
-  const [isSavingEdit,     setIsSavingEdit]     = useState(false)
+  const [deletingTripId,   setDeletingTripId]   = useState<string | null>(null)
+
+  // ── Fahrtenbuch-Historie ──────────────────────────────────────────────────
+  const [historyVehicleId,    setHistoryVehicleId]    = useState('')
+  const [historyTrips,        setHistoryTrips]        = useState<Trip[]>([])
+  const [isLoadingHistoryTrips, setIsLoadingHistoryTrips] = useState(false)
+  const HISTORY_PAGE_SIZE = 25
+  const [historyLimit,        setHistoryLimit]        = useState(HISTORY_PAGE_SIZE)
+  const [historyYear,         setHistoryYear]         = useState(new Date().getFullYear())
+  const [isExporting,         setIsExporting]         = useState(false)
 
   // ── Ausgaben ──────────────────────────────────────────────────────────────
   const [expenses,        setExpenses]        = useState<Expense[]>([])
   const [isLoadingExpenses, setIsLoadingExpenses] = useState(false)
 
   // ── Einstellungen ─────────────────────────────────────────────────────────
-  const [dropboxConnected, setDropboxConnected] = useState(false)
-  const [isLoggingIn,      setIsLoggingIn]      = useState(false)
-  const [dropboxFolder,    setDropboxFolderState] = useState(() => getDropboxFolder())
-  const [folderSaved,      setFolderSaved]      = useState(false)
+  const [nfcStatus, setNfcStatus] = useState<Record<string, 'idle' | 'writing' | 'success' | 'error'>>({})
+
+  const handleWriteNfc = async (vehicleId: string) => {
+    setNfcStatus(prev => ({ ...prev, [vehicleId]: 'writing' }))
+    const url = `${window.location.origin}/fahrzeug/${vehicleId}`
+    try {
+      // @ts-ignore – NDEFReader is not in standard TS lib
+      const writer = new NDEFReader()
+      await Promise.race([
+        writer.write({ records: [{ recordType: 'url', data: url }] }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 10000)),
+      ])
+      setNfcStatus(prev => ({ ...prev, [vehicleId]: 'success' }))
+      setTimeout(() => setNfcStatus(prev => ({ ...prev, [vehicleId]: 'idle' })), 3000)
+    } catch (err: unknown) {
+      console.error('NFC write error:', err)
+      setNfcStatus(prev => ({ ...prev, [vehicleId]: 'error' }))
+      setTimeout(() => setNfcStatus(prev => ({ ...prev, [vehicleId]: 'idle' })), 4000)
+    }
+  }
+
+  const nfcSupported = typeof window !== 'undefined' && 'NDEFReader' in window
 
   const currentUserId = user?.id ?? ''
 
@@ -63,12 +88,18 @@ export const Dashboard: React.FC = () => {
   useEffect(() => {
     supabase.from('vehicles').select('*').order('model').then(({ data, error }) => {
       if (error) setErrorMsg(`DB-Fehler: ${error.message}`)
-      else if (data) setVehicles(data)
+      else if (data) {
+        setVehicles(data)
+        if (data.length > 0) setHistoryVehicleId(data[0].id)
+        // NFC deep link: pre-select vehicle from URL param if it belongs to user
+        if (nfcVehicleId && data.some(v => v.id === nfcVehicleId)) {
+          setSelectedVehicleId(nfcVehicleId)
+        }
+      }
       setIsLoadingVehicles(false)
     })
     if (currentUserId) checkActiveTrip(currentUserId)
-    setDropboxConnected(isDropboxConnected())
-  }, [currentUserId, checkActiveTrip])
+  }, [currentUserId, checkActiveTrip, nfcVehicleId])
 
   // Kilometer automatisch laden wenn Fahrzeug gewählt
   useEffect(() => {
@@ -94,11 +125,30 @@ export const Dashboard: React.FC = () => {
       })
   }, [currentUserId, activeTrip])
 
+  // Fahrtenbuch-Historie
+  useEffect(() => {
+    if (tab !== 'historie' || !currentUserId) return
+    setIsLoadingHistoryTrips(true)
+    const yearStart = new Date(historyYear, 0, 1).toISOString()
+    const yearEnd   = new Date(historyYear + 1, 0, 1).toISOString()
+    let query = supabase.from('trips').select('*')
+      .not('end_km', 'is', null)
+      .gte('timestamp', yearStart)
+      .lt('timestamp', yearEnd)
+      .order('timestamp', { ascending: false })
+      .limit(historyLimit)
+    if (historyVehicleId) query = query.eq('vehicle_id', historyVehicleId)
+    query.then(({ data, error }) => {
+      if (!error && data) setHistoryTrips(data)
+      setIsLoadingHistoryTrips(false)
+    })
+  }, [tab, currentUserId, historyVehicleId, historyLimit, historyYear])
+
   // Ausgaben-Liste
   useEffect(() => {
     if (!currentUserId || tab !== 'ausgabe') return
     setIsLoadingExpenses(true)
-    supabase.from('expenses').select('*').eq('user_id', currentUserId)
+    supabase.from('expenses').select('*').eq('driver_id', currentUserId)
       .order('created_at', { ascending: false }).limit(20)
       .then(({ data, error }) => {
         if (!error && data) setExpenses(data)
@@ -116,10 +166,16 @@ export const Dashboard: React.FC = () => {
     const { error } = await supabase.from('trips').insert({
       vehicle_id: selectedVehicleId, user_id: currentUserId, driver_id: currentUserId,
       start_km: Number(startKm), start_location: startLocation,
+      purpose: tripPurpose,
+      business_partner: tripPurpose === 'dienstlich' ? (businessPartner || null) : null,
       timestamp: new Date(tripDateTime).toISOString(),
     })
     if (error) setErrorMsg(`Fehler: ${error.message}`)
-    else { await checkActiveTrip(currentUserId); setStartLocation(''); setTripDateTime(toDateTimeLocal(new Date())) }
+    else {
+      await checkActiveTrip(currentUserId)
+      setStartLocation(''); setTripDateTime(toDateTimeLocal(new Date()))
+      setTripPurpose('dienstlich'); setBusinessPartner('')
+    }
     setIsSubmitting(false)
   }
 
@@ -138,36 +194,42 @@ export const Dashboard: React.FC = () => {
     setIsSubmitting(false)
   }
 
-  const handleUpdateTrip = async (tripId: string) => {
-    if (!editDateTime) return
-    setIsSavingEdit(true)
-    const { error } = await supabase.from('trips').update({ timestamp: new Date(editDateTime).toISOString() }).eq('id', tripId)
-    if (error) { setErrorMsg(`Fehler: ${error.message}`); setIsSavingEdit(false); return }
-    setPastTrips(prev => prev.map(t => t.id === tripId ? { ...t, timestamp: new Date(editDateTime).toISOString() } : t))
-    setEditingTripId(null)
-    setIsSavingEdit(false)
+  const handleDeleteTrip = async (tripId: string) => {
+    setDeletingTripId(tripId)
+    const { error } = await supabase.from('trips').delete().eq('id', tripId)
+    if (error) { setErrorMsg(`Fehler: ${error.message}`); setDeletingTripId(null); return }
+    setPastTrips(prev => prev.filter(t => t.id !== tripId))
+    setDeletingTripId(null)
   }
 
-  const handleDropboxConnect = async () => {
-    setIsLoggingIn(true)
-    try { await startDropboxLogin() } catch { setIsLoggingIn(false) }
-  }
-
-  const handleDropboxDisconnect = () => {
-    logoutDropbox()
-    setDropboxConnected(false)
-  }
-
-  const handleDropboxSwitch = async () => {
-    setIsLoggingIn(true)
-    try { await switchDropboxAccount() } catch { setIsLoggingIn(false) }
-  }
-
-  const handleSaveFolder = () => {
-    setDropboxFolder(dropboxFolder)
-    setDropboxFolderState(getDropboxFolder())
-    setFolderSaved(true)
-    setTimeout(() => setFolderSaved(false), 2000)
+  const handleExportPdf = async () => {
+    if (!historyVehicleId) return
+    const vehicle = vehicles.find(v => v.id === historyVehicleId)
+    if (!vehicle) return
+    setIsExporting(true)
+    // Load ALL trips for this vehicle+year (no limit) for the export
+    const yearStart = new Date(historyYear, 0, 1).toISOString()
+    const yearEnd   = new Date(historyYear + 1, 0, 1).toISOString()
+    const { data, error } = await supabase.from('trips').select('*')
+      .eq('vehicle_id', historyVehicleId)
+      .not('end_km', 'is', null)
+      .gte('timestamp', yearStart)
+      .lt('timestamp', yearEnd)
+      .order('timestamp', { ascending: true })
+    if (error || !data) { setErrorMsg(`Fehler beim Export: ${error?.message}`); setIsExporting(false); return }
+    const blob = buildFahrtenbuchPdf({
+      trips: data,
+      vehicle,
+      driverName: user?.email ?? 'Unbekannt',
+      year: historyYear,
+    })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href     = url
+    a.download = `Fahrtenbuch_${vehicle.license_plate.replace(/\s/g, '-')}_${historyYear}.pdf`
+    a.click()
+    URL.revokeObjectURL(url)
+    setIsExporting(false)
   }
 
   const formatDate = (d: string) => new Intl.DateTimeFormat('de-DE', {
@@ -251,6 +313,38 @@ export const Dashboard: React.FC = () => {
                     value={startKm} placeholder="z.B. 150000" required disabled={isFetchingMileage}
                     onChange={e => setStartKm(e.target.value === '' ? '' : Number(e.target.value))} />
                 </div>
+
+                {/* Reisezweck */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Reisezweck</label>
+                  <div className="flex gap-2">
+                    {([
+                      { value: 'dienstlich', label: 'Dienstlich' },
+                      { value: 'privat',     label: 'Privat' },
+                      { value: 'arbeitsweg', label: 'Arbeitsweg' },
+                    ] as { value: TripPurpose; label: string }[]).map(opt => (
+                      <button key={opt.value} type="button"
+                        onClick={() => setTripPurpose(opt.value)}
+                        className={['flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition-colors',
+                          tripPurpose === opt.value
+                            ? 'bg-brand-700 border-brand-700 text-white'
+                            : 'bg-white border-gray-200 text-gray-600'].join(' ')}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Geschäftspartner (nur bei dienstlich) */}
+                {tripPurpose === 'dienstlich' && (
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Geschäftspartner / Kunde</label>
+                    <input type="text"
+                      className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-white text-gray-900 font-medium outline-none focus:border-brand-500 transition-colors"
+                      value={businessPartner} placeholder="z.B. Audi AG München"
+                      onChange={e => setBusinessPartner(e.target.value)} />
+                  </div>
+                )}
 
                 {/* Startort */}
                 <div>
@@ -352,39 +446,29 @@ export const Dashboard: React.FC = () => {
                             {trip.end_km && (trip.end_km - trip.start_km).toLocaleString('de-DE')} km
                           </span>
                           <button type="button"
-                            onClick={() => { setEditingTripId(trip.id); setEditDateTime(toDateTimeLocal(new Date(trip.timestamp))) }}
-                            className="w-7 h-7 rounded-lg bg-gray-100 text-gray-500 flex items-center justify-center active:scale-95 transition-transform text-xs">
-                            ✏️
+                            onClick={() => handleDeleteTrip(trip.id)}
+                            disabled={deletingTripId === trip.id}
+                            className="w-7 h-7 rounded-lg bg-red-50 text-red-400 flex items-center justify-center active:scale-95 transition-transform text-xs disabled:opacity-50">
+                            {deletingTripId === trip.id
+                              ? <span className="w-3 h-3 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
+                              : '🗑️'}
                           </button>
                         </div>
                       </div>
                       <p className="text-sm text-gray-700 truncate">
                         {trip.start_location} <span className="text-gray-400">→</span> {trip.end_location}
                       </p>
-
-                      {/* Inline-Editor */}
-                      {editingTripId === trip.id && (
-                        <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
-                          <label className="block text-xs font-semibold text-gray-500">Datum &amp; Uhrzeit anpassen</label>
-                          <input type="datetime-local"
-                            className="w-full px-3 py-2 rounded-xl border-2 border-amber-300 bg-white text-gray-900 text-sm font-medium outline-none focus:border-amber-500 transition-colors"
-                            value={editDateTime}
-                            max={toDateTimeLocal(new Date())}
-                            onChange={e => setEditDateTime(e.target.value)} />
-                          <div className="flex gap-2">
-                            <button type="button" onClick={() => setEditingTripId(null)}
-                              className="flex-1 py-2 rounded-xl border-2 border-gray-200 text-gray-600 text-sm font-semibold active:scale-95 transition-transform">
-                              Abbrechen
-                            </button>
-                            <button type="button" onClick={() => handleUpdateTrip(trip.id)} disabled={isSavingEdit}
-                              className="flex-1 py-2 rounded-xl bg-amber-500 text-white text-sm font-semibold disabled:opacity-60 active:scale-95 transition-transform flex items-center justify-center">
-                              {isSavingEdit
-                                ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                : 'Speichern'}
-                            </button>
-                          </div>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        <span className={['text-[10px] font-semibold px-1.5 py-0.5 rounded-full',
+                          trip.purpose === 'dienstlich' ? 'bg-blue-100 text-blue-700' :
+                          trip.purpose === 'arbeitsweg' ? 'bg-purple-100 text-purple-700' :
+                          'bg-gray-100 text-gray-500'].join(' ')}>
+                          {trip.purpose === 'dienstlich' ? 'Dienstlich' : trip.purpose === 'arbeitsweg' ? 'Arbeitsweg' : 'Privat'}
+                        </span>
+                        {trip.business_partner && (
+                          <span className="text-xs text-gray-400 truncate">{trip.business_partner}</span>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -408,15 +492,6 @@ export const Dashboard: React.FC = () => {
               <span className="ml-auto text-2xl opacity-60">›</span>
             </button>
 
-            {pendingCount > 0 && (
-              <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-3">
-                <span className="text-xl">📥</span>
-                <p className="text-sm text-amber-800 font-semibold">
-                  {pendingCount} Upload{pendingCount > 1 ? 's' : ''} in der Queue
-                </p>
-              </div>
-            )}
-
             <div>
               <p className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">Letzte Ausgaben</p>
               {isLoadingExpenses ? (
@@ -429,21 +504,157 @@ export const Dashboard: React.FC = () => {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {expenses.map(exp => (
-                    <div key={exp.id} className="bg-white border border-gray-200 rounded-2xl px-4 py-4 shadow-sm">
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-2">
-                          <span>{exp.expense_type === 'tanken' ? '⛽' : '⚡'}</span>
-                          <span className="text-sm font-semibold text-gray-700">{exp.project ?? '—'}</span>
+                  {expenses.map(exp => {
+                    const CardEl = exp.dropbox_link ? 'a' : 'div'
+                    const cardProps = exp.dropbox_link
+                      ? { href: exp.dropbox_link, target: '_blank' as const, rel: 'noopener noreferrer' }
+                      : {}
+                    return (
+                      <CardEl key={exp.id} {...cardProps}
+                        className={['bg-white border rounded-2xl px-4 py-4 shadow-sm block',
+                          exp.dropbox_link
+                            ? 'border-brand-200 active:scale-[0.98] transition-transform cursor-pointer'
+                            : 'border-gray-200'].join(' ')}>
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center gap-2">
+                            <span>{exp.type === 'fuel' ? '⛽' : '⚡'}</span>
+                            <span className="text-sm font-semibold text-gray-700">{exp.type === 'fuel' ? 'Tanken' : 'Laden'}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-gray-900">{exp.amount.toLocaleString('de-DE', { minimumFractionDigits: 2 })} €</span>
+                            {exp.dropbox_link && (
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-brand-600">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                <polyline points="7 10 12 15 17 10"/>
+                                <line x1="12" y1="15" x2="12" y2="3"/>
+                              </svg>
+                            )}
+                          </div>
                         </div>
-                        <span className="font-bold text-gray-900">{exp.amount.toLocaleString('de-DE', { minimumFractionDigits: 2 })} €</span>
-                      </div>
-                      <p className="text-xs text-gray-400 mt-1">{formatDateShort(exp.date)}</p>
-                    </div>
-                  ))}
+                        <p className="text-xs text-gray-400 mt-1">{formatDateShort(exp.date)}</p>
+                      </CardEl>
+                    )
+                  })}
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Tab: Historie */}
+        {tab === 'historie' && (
+          <div className="px-5 pt-5 pb-4 space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <h1 className="text-xl font-bold text-gray-900">Fahrtenbuch</h1>
+              {/* Jahres-Auswahl */}
+              <select
+                value={historyYear}
+                onChange={e => { setHistoryYear(Number(e.target.value)); setHistoryLimit(HISTORY_PAGE_SIZE) }}
+                className="px-3 py-1.5 rounded-xl border-2 border-gray-200 bg-white text-gray-700 font-semibold text-sm outline-none focus:border-brand-500">
+                {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map(y => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Fahrzeug-Filter */}
+            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+              {vehicles.map(v => (
+                <button key={v.id}
+                  onClick={() => { setHistoryVehicleId(v.id); setHistoryLimit(HISTORY_PAGE_SIZE) }}
+                  className={['shrink-0 px-4 py-2 rounded-full text-sm font-semibold transition-colors',
+                    historyVehicleId === v.id
+                      ? 'bg-brand-700 text-white'
+                      : 'bg-white border border-gray-200 text-gray-600'].join(' ')}>
+                  {v.license_plate}
+                </button>
+              ))}
+            </div>
+
+            {/* Fahrzeuganzeige wenn gefiltert */}
+            {historyVehicleId && (() => {
+              const v = vehicles.find(x => x.id === historyVehicleId)
+              return v ? (
+                <div className="flex items-center gap-3 bg-white border border-gray-200 rounded-2xl px-4 py-3">
+                  <span className="text-2xl">🚗</span>
+                  <div>
+                    <p className="font-semibold text-gray-900">{v.model}</p>
+                    <p className="text-xs text-gray-400 font-mono">{v.license_plate} · {v.current_mileage.toLocaleString('de-DE')} km</p>
+                  </div>
+                </div>
+              ) : null
+            })()}
+
+            {/* PDF-Export */}
+            {historyVehicleId && (
+              <button
+                onClick={handleExportPdf}
+                disabled={isExporting || historyTrips.length === 0}
+                className="w-full flex items-center justify-center gap-2 py-3 bg-brand-700 text-white rounded-2xl font-semibold text-sm active:scale-95 transition-transform disabled:opacity-50">
+                {isExporting
+                  ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  : '📄'}
+                {isExporting ? 'Erstelle PDF…' : `Fahrtenbuch ${historyYear} exportieren`}
+              </button>
+            )}
+
+            {/* Fahrten-Liste */}
+            {isLoadingHistoryTrips ? (
+              <div className="flex justify-center py-10">
+                <div className="w-6 h-6 border-2 border-brand-600 border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : historyTrips.length === 0 ? (
+              <div className="bg-white border border-gray-200 rounded-2xl p-8 text-center text-gray-400 text-sm">
+                {historyVehicleId ? 'Keine Fahrten für dieses Fahrzeug.' : 'Noch keine abgeschlossenen Fahrten.'}
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  {historyTrips.map(trip => {
+                    const km = trip.end_km ? trip.end_km - trip.start_km : 0
+                    return (
+                      <div key={trip.id} className="bg-white border border-gray-200 rounded-2xl px-4 py-4 shadow-sm">
+                        <div className="flex justify-between items-center mb-1">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-xs text-gray-400 shrink-0">{formatDate(trip.timestamp)}</span>
+                            {isNachtrag(trip.timestamp, trip.created_at) && (
+                              <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full shrink-0">Nachtrag</span>
+                            )}
+                          </div>
+                          <span className="text-sm font-bold text-brand-700 bg-brand-50 px-2 py-0.5 rounded-full shrink-0">
+                            {km.toLocaleString('de-DE')} km
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-700 truncate">
+                          {trip.start_location} <span className="text-gray-400">→</span> {trip.end_location}
+                        </p>
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          <span className={['text-[10px] font-semibold px-1.5 py-0.5 rounded-full',
+                            trip.purpose === 'dienstlich' ? 'bg-blue-100 text-blue-700' :
+                            trip.purpose === 'arbeitsweg' ? 'bg-purple-100 text-purple-700' :
+                            'bg-gray-100 text-gray-500'].join(' ')}>
+                            {trip.purpose === 'dienstlich' ? 'Dienstlich' : trip.purpose === 'arbeitsweg' ? 'Arbeitsweg' : 'Privat'}
+                          </span>
+                          {trip.business_partner && (
+                            <span className="text-xs text-gray-400 truncate">{trip.business_partner}</span>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {trip.start_km.toLocaleString('de-DE')} → {trip.end_km?.toLocaleString('de-DE')} km
+                        </p>
+                      </div>
+                    )
+                  })}
+                </div>
+                {historyTrips.length >= historyLimit && (
+                  <button
+                    onClick={() => setHistoryLimit(l => l + HISTORY_PAGE_SIZE)}
+                    className="w-full py-3 border-2 border-gray-200 text-gray-600 rounded-2xl font-semibold text-sm active:scale-95 transition-transform">
+                    Mehr laden
+                  </button>
+                )}
+              </>
+            )}
           </div>
         )}
 
@@ -452,83 +663,41 @@ export const Dashboard: React.FC = () => {
           <div className="px-5 pt-5 pb-4 space-y-5">
             <h1 className="text-xl font-bold text-gray-900">Einstellungen</h1>
 
-            {/* Dropbox */}
-            <section className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-              <div className="px-4 py-3 border-b border-gray-100">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Dropbox</p>
-              </div>
-
-              {/* Verbindungsstatus */}
-              <div className="px-4 py-4 flex items-center gap-4 border-b border-gray-100">
-                <div className="w-12 h-12 rounded-xl bg-blue-600 flex items-center justify-center text-white text-xl font-bold flex-shrink-0">
-                  ✦
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-gray-900">{dropboxConnected ? 'Verbunden' : 'Nicht verbunden'}</p>
-                  <p className="text-sm text-gray-500 truncate">
-                    {dropboxConnected ? 'Belege werden in Dropbox gespeichert.' : 'Verbinde Dropbox für automatische Uploads.'}
-                  </p>
-                </div>
-                {dropboxConnected ? (
-                  <button onClick={handleDropboxDisconnect}
-                    className="px-4 py-2 rounded-xl border-2 border-red-200 text-red-600 text-sm font-semibold active:scale-95 transition-transform shrink-0">
-                    Trennen
-                  </button>
-                ) : (
-                  <button onClick={handleDropboxConnect} disabled={isLoggingIn}
-                    className="px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold disabled:opacity-60 active:scale-95 transition-transform shrink-0">
-                    {isLoggingIn ? '…' : 'Verbinden'}
-                  </button>
-                )}
-              </div>
-
-              {/* Konto wechseln */}
-              {dropboxConnected && (
-                <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-semibold text-gray-700">Konto wechseln</p>
-                    <p className="text-xs text-gray-400">Mit einem anderen Dropbox-Konto verbinden</p>
-                  </div>
-                  <button onClick={handleDropboxSwitch} disabled={isLoggingIn}
-                    className="px-4 py-2 rounded-xl border-2 border-gray-200 text-gray-700 text-sm font-semibold active:scale-95 transition-transform disabled:opacity-60 shrink-0">
-                    {isLoggingIn ? '…' : 'Wechseln'}
-                  </button>
-                </div>
-              )}
-
-              {/* Ordner-Einstellung */}
-              <div className="px-4 py-4">
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Basis-Ordner</label>
-                <p className="text-xs text-gray-400 mb-2">Belege werden unter <span className="font-mono">{dropboxFolder}/[Kennzeichen]/</span> gespeichert</p>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={dropboxFolder}
-                    onChange={e => setDropboxFolderState(e.target.value)}
-                    placeholder="/LogDrive"
-                    className="flex-1 px-3 py-2 rounded-xl border-2 border-gray-200 bg-white text-gray-900 font-mono text-sm outline-none focus:border-brand-500 transition-colors"
-                  />
-                  <button onClick={handleSaveFolder}
-                    className={['px-4 py-2 rounded-xl text-sm font-semibold active:scale-95 transition-all shrink-0',
-                      folderSaved ? 'bg-green-500 text-white' : 'bg-brand-700 text-white'].join(' ')}>
-                    {folderSaved ? '✓' : 'Speichern'}
-                  </button>
-                </div>
-              </div>
-            </section>
-
             {/* Fahrzeug */}
             <section className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
               <div className="px-4 py-3 border-b border-gray-100">
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Fahrzeuge</p>
               </div>
-              {vehicles.map(v => (
-                <div key={v.id} className="px-4 py-3 flex items-center gap-3 border-b border-gray-50 last:border-0">
-                  <span>🚗</span>
-                  <span className="flex-1 font-medium text-gray-900">{v.model}</span>
-                  <span className="font-mono text-sm text-gray-500">{v.license_plate}</span>
-                </div>
-              ))}
+              {vehicles.map(v => {
+                const status = nfcStatus[v.id] ?? 'idle'
+                return (
+                  <div key={v.id} className="px-4 py-3 flex items-center gap-3 border-b border-gray-50 last:border-0">
+                    <span>🚗</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-gray-900 truncate">{v.model}</p>
+                      <p className="font-mono text-xs text-gray-500">{v.license_plate}</p>
+                    </div>
+                    {nfcSupported && (
+                      <button
+                        onClick={() => handleWriteNfc(v.id)}
+                        disabled={status === 'writing'}
+                        className={[
+                          'shrink-0 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-colors',
+                          status === 'writing' ? 'border-brand-300 text-brand-500 opacity-60' :
+                          status === 'success' ? 'border-green-300 text-green-700 bg-green-50' :
+                          status === 'error'   ? 'border-red-300 text-red-600 bg-red-50' :
+                          'border-gray-200 text-gray-600 active:bg-gray-50',
+                        ].join(' ')}
+                      >
+                        {status === 'writing' ? 'Warte…' :
+                         status === 'success' ? 'Beschrieben ✓' :
+                         status === 'error'   ? 'Fehler – nochmal' :
+                         'NFC beschreiben'}
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
               <button onClick={() => navigate('/fahrzeug-hinzufuegen')}
                 className="w-full px-4 py-3 flex items-center gap-3 text-brand-700 font-semibold text-sm active:bg-gray-50 transition-colors">
                 <span>+</span> Fahrzeug hinzufügen
@@ -550,6 +719,23 @@ export const Dashboard: React.FC = () => {
               </div>
             </section>
 
+            {/* Rechtliches */}
+            <section className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-100">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Rechtliches</p>
+              </div>
+              <div className="divide-y divide-gray-100">
+                <Link to="/impressum" className="flex justify-between items-center px-4 py-3 active:bg-gray-50 transition-colors">
+                  <span className="text-sm text-gray-700">Impressum</span>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400"><path d="M9 18l6-6-6-6"/></svg>
+                </Link>
+                <Link to="/datenschutz" className="flex justify-between items-center px-4 py-3 active:bg-gray-50 transition-colors">
+                  <span className="text-sm text-gray-700">Datenschutzerklärung</span>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400"><path d="M9 18l6-6-6-6"/></svg>
+                </Link>
+              </div>
+            </section>
+
             {/* Abmelden */}
             <button onClick={async () => { await supabase.auth.signOut(); navigate('/login') }}
               className="w-full py-3 border-2 border-red-200 text-red-600 rounded-2xl font-semibold active:scale-95 transition-transform">
@@ -567,8 +753,12 @@ export const Dashboard: React.FC = () => {
             icon: <><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></>,
           },
           {
-            id: 'ausgabe' as Tab, label: 'Ausgabe', badge: pendingCount,
+            id: 'ausgabe' as Tab, label: 'Ausgabe', badge: 0,
             icon: <><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></>,
+          },
+          {
+            id: 'historie' as Tab, label: 'Historie', badge: 0,
+            icon: <><path d="M12 8v4l3 3"/><path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5"/></>,
           },
           {
             id: 'einstellungen' as Tab, label: 'Einstellungen', badge: 0,
