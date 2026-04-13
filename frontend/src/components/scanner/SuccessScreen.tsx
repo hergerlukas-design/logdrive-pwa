@@ -3,11 +3,10 @@ import { useNavigate } from 'react-router-dom'
 
 interface Props {
   fileName:  string
-  queued:    boolean
   onScanNew: () => void
 }
 
-export default function SuccessScreen({ fileName, queued, onScanNew }: Props) {
+export default function SuccessScreen({ fileName, onScanNew }: Props) {
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -16,19 +15,12 @@ export default function SuccessScreen({ fileName, queued, onScanNew }: Props) {
 
   return (
     <div className="flex flex-col items-center justify-center flex-1 min-h-0 bg-gray-50 p-8 text-center gap-6">
-      <div className={`w-24 h-24 rounded-full flex items-center justify-center text-5xl
-        ${queued ? 'bg-amber-100' : 'bg-green-100'}`}>
-        {queued ? '📥' : '✅'}
-      </div>
+      <div className="w-24 h-24 rounded-full bg-green-100 flex items-center justify-center text-5xl">✅</div>
 
       <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">
-          {queued ? 'In Queue gespeichert' : 'Ausgabe gespeichert!'}
-        </h2>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Ausgabe gespeichert!</h2>
         <p className="text-gray-500 text-sm leading-relaxed">
-          {queued
-            ? 'Du bist offline. Der Dropbox-Upload wird nachgeholt, sobald du wieder Netzempfang hast. In Supabase wurde die Ausgabe bereits gespeichert.'
-            : 'Beleg wurde in Dropbox hochgeladen und in der Datenbank gespeichert.'}
+          Die Ausgabe wurde in der Datenbank gespeichert. Das PDF wurde zum Teilen weitergegeben.
         </p>
       </div>
 

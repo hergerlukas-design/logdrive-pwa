@@ -2,14 +2,12 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { buildPdf, buildFileName } from '../lib/pdfBuilder'
-import { uploadPdfToDropbox, isDropboxConnected, getDropboxFolder } from '../lib/dropboxClient'
-import CameraView   from '../components/scanner/CameraView'
-import CropView     from '../components/scanner/CropView'
+import CameraView    from '../components/scanner/CameraView'
+import CropView      from '../components/scanner/CropView'
 import ReviewCard, { type ReviewMeta } from '../components/scanner/ReviewCard'
 import SuccessScreen from '../components/scanner/SuccessScreen'
-import { useAuth }  from '../context/AuthContext'
+import { useAuth }   from '../context/AuthContext'
 import type { Database, ExpenseType } from '../lib/database.types'
-import { addToQueue } from '../lib/db'
 
 type Vehicle = Database['public']['Tables']['vehicles']['Row']
 
@@ -34,26 +32,23 @@ export const AddExpense: React.FC = () => {
   const [step,             setStep]            = useState<Step>('vehicle-select')
   const [vehicles,         setVehicles]        = useState<Vehicle[]>([])
   const [selectedVehicle,  setSelectedVehicle] = useState<Vehicle | null>(null)
-  const [expenseType,      setExpenseType]     = useState<ExpenseType>('tanken')
+  const [expenseType,      setExpenseType]     = useState<ExpenseType>('fuel')
   const [imageData,        setImageData]       = useState<string | null>(null)
   const [meta,             setMeta]            = useState<ReviewMeta | null>(null)
   const [uploading,        setUploading]       = useState(false)
   const [uploadError,      setUploadError]     = useState<string | null>(null)
   const [lastFilename,     setLastFilename]    = useState('')
-  const [wasQueued,        setWasQueued]       = useState(false)
   const [isLoadingVehicles, setIsLoadingVehicles] = useState(true)
 
-  // Metadaten-Formular
-  const [betrag,    setBetrag]    = useState('')
-  const [projekt,   setProjekt]   = useState('')
-  const [datum,     setDatum]     = useState(today)
-  const [errors,    setErrors]    = useState<Record<string, string>>({})
+  const [betrag,  setBetrag]  = useState('')
+  const [projekt, setProjekt] = useState('')
+  const [datum,   setDatum]   = useState(today)
+  const [errors,  setErrors]  = useState<Record<string, string>>({})
 
   useEffect(() => {
     supabase.from('vehicles').select('*').order('model').then(({ data }) => {
       if (data) {
         setVehicles(data)
-        // Fahrzeug vorauswählen wenn per URL-Parameter übergeben
         const preselect = searchParams.get('vehicle')
         if (preselect) {
           const found = data.find(v => v.id === preselect)
@@ -64,25 +59,20 @@ export const AddExpense: React.FC = () => {
     })
   }, [searchParams])
 
-  // ── Schritt 1: Fahrzeug + Typ ────────────────────────────────────────────────
   const handleVehicleSubmit = () => {
-    if (!selectedVehicle) return
     setStep('camera')
   }
 
-  // ── Schritt 2: Kamera ────────────────────────────────────────────────────────
   const handleImageCaptured = useCallback((dataUrl: string) => {
     setImageData(dataUrl)
     setStep('crop')
   }, [])
 
-  // ── Schritt 3: Zuschnitt ─────────────────────────────────────────────────────
   const handleCropDone = useCallback((croppedDataUrl: string) => {
     setImageData(croppedDataUrl)
     setStep('meta')
   }, [])
 
-  // ── Schritt 4: Metadaten ─────────────────────────────────────────────────────
   function validateMeta(): boolean {
     const e: Record<string, string> = {}
     if (!betrag.trim()) {
@@ -101,35 +91,28 @@ export const AddExpense: React.FC = () => {
   }
 
   const handleMetaSubmit = () => {
-    if (!validateMeta() || !selectedVehicle) return
-
+    if (!validateMeta()) return
     const metaFields: MetaFields = { betrag: betrag.trim(), projekt: projekt.trim(), datum: datum.trim() }
-    const fileName = buildFileName({ ...metaFields, zusatz: selectedVehicle.license_plate })
-
+    const zusatz = selectedVehicle?.license_plate ?? ''
+    const fileName = buildFileName({ ...metaFields, ...(zusatz ? { zusatz } : {}) })
     setMeta({
       ...metaFields,
-      zusatz:       selectedVehicle.license_plate,
+      zusatz,
       expenseType,
-      vehicleId:    selectedVehicle.id,
-      vehicleModel: selectedVehicle.model,
+      vehicleId:    selectedVehicle?.id ?? null,
+      vehicleModel: selectedVehicle?.model ?? '',
       fileName,
     })
     setStep('review')
   }
 
-  // ── Schritt 5: Upload + DB-Eintrag ───────────────────────────────────────────
-  const handleUpload = useCallback(async (finalFilename: string, finalImageUrl: string) => {
-    if (!meta || !imageData || !user) return
+  const handleSave = useCallback(async (finalFilename: string, finalImageUrl: string) => {
+    if (!meta || !user) return
     setUploading(true)
     setUploadError(null)
 
-    const folderPath = `${getDropboxFolder()}/${meta.zusatz}`
-
-    // Datum TT.MM.JJJJ → YYYY-MM-DD für Supabase
     const [dd, mm, yyyy] = meta.datum.split('.')
-    const isoDate = `${yyyy}-${mm}-${dd}`
-
-    // Betrag "42,50" → 42.50
+    const isoDate  = `${yyyy}-${mm}-${dd}`
     const amountNum = parseFloat(meta.betrag.replace(',', '.'))
 
     try {
@@ -137,32 +120,55 @@ export const AddExpense: React.FC = () => {
         betrag:  meta.betrag,
         projekt: meta.projekt,
         datum:   meta.datum,
-        zusatz:  meta.zusatz,
+        zusatz:  meta.zusatz || undefined,
       })
 
-      let dropboxPath: string | null = null
-
-      if (navigator.onLine && isDropboxConnected()) {
-        await uploadPdfToDropbox(pdfBlob, finalFilename, folderPath)
-        dropboxPath = `${folderPath}/${finalFilename}`
-        setWasQueued(false)
-      } else {
-        await addToQueue({ pdfBlob, fileName: finalFilename, folderPath })
-        setWasQueued(true)
+      // PDF in Supabase Storage hochladen
+      let pdfUrl: string | null = null
+      const safeFilename = finalFilename
+        .replace(/[^a-zA-Z0-9._\-]/g, '_')
+        .replace(/__+/g, '_')
+      const storagePath = `${user.id}/${safeFilename}`
+      const { error: storageError } = await supabase.storage
+        .from('expense-pdfs')
+        .upload(storagePath, pdfBlob, { contentType: 'application/pdf', upsert: true })
+      if (storageError) {
+        console.error('Storage-Fehler:', storageError.message)
+        throw new Error(`Storage-Fehler: ${storageError.message}`)
       }
+      const { data: { publicUrl } } = supabase.storage
+        .from('expense-pdfs')
+        .getPublicUrl(storagePath)
+      pdfUrl = publicUrl
 
-      // Immer in Supabase speichern
+      // Supabase speichern
       const { error: dbError } = await supabase.from('expenses').insert({
-        vehicle_id:   meta.vehicleId,
-        user_id:      user.id,
+        vehicle_id:   meta.vehicleId ?? undefined,
+        driver_id:    user.id,
         amount:       amountNum,
-        expense_type: meta.expenseType,
-        project:      meta.projekt,
+        type:         meta.expenseType,
         date:         isoDate,
-        dropbox_path: dropboxPath,
+        dropbox_link: pdfUrl,
       })
-
       if (dbError) throw new Error(`DB-Fehler: ${dbError.message}`)
+
+      // PDF teilen via Web Share API
+      const pdfFile = new File([pdfBlob], finalFilename, { type: 'application/pdf' })
+      if (navigator.canShare?.({ files: [pdfFile] })) {
+        try {
+          await navigator.share({ files: [pdfFile], title: finalFilename })
+        } catch {
+          // Nutzer hat Teilen abgebrochen — kein Fehler
+        }
+      } else {
+        // Fallback: direkter Download
+        const url = URL.createObjectURL(pdfBlob)
+        const a   = document.createElement('a')
+        a.href    = url
+        a.download = finalFilename
+        a.click()
+        URL.revokeObjectURL(url)
+      }
 
       setLastFilename(finalFilename)
       setStep('success')
@@ -171,9 +177,8 @@ export const AddExpense: React.FC = () => {
     } finally {
       setUploading(false)
     }
-  }, [meta, imageData, user])
+  }, [meta, user])
 
-  // ── Reset ────────────────────────────────────────────────────────────────────
   const reset = useCallback(() => {
     setStep('vehicle-select')
     setImageData(null)
@@ -186,7 +191,6 @@ export const AddExpense: React.FC = () => {
     setLastFilename('')
   }, [])
 
-  // ── Vollbild-Steps (Kamera / Crop) ───────────────────────────────────────────
   if (step === 'camera') {
     return (
       <div className="absolute inset-0 z-50">
@@ -201,16 +205,13 @@ export const AddExpense: React.FC = () => {
       </div>
     )
   }
-
-  // ── Review (fast vollbild) ───────────────────────────────────────────────────
   if (step === 'review' && meta && imageData) {
     return (
       <div className="flex flex-col h-dvh bg-gray-50 safe-top">
         <ReviewCard
           imageDataUrl={imageData}
           meta={meta}
-          folderPath={`${getDropboxFolder()}/${meta.zusatz}`}
-          onConfirm={handleUpload}
+          onConfirm={handleSave}
           onBack={() => setStep('meta')}
           uploading={uploading}
           uploadError={uploadError}
@@ -218,21 +219,17 @@ export const AddExpense: React.FC = () => {
       </div>
     )
   }
-
-  // ── Erfolg ───────────────────────────────────────────────────────────────────
   if (step === 'success') {
     return (
       <div className="flex flex-col h-dvh bg-gray-50 safe-top">
-        <SuccessScreen fileName={lastFilename} queued={wasQueued} onScanNew={reset} />
+        <SuccessScreen fileName={lastFilename} onScanNew={reset} />
       </div>
     )
   }
 
-  // ── Fahrzeug-Auswahl & Metadaten ─────────────────────────────────────────────
   return (
     <div className="flex flex-col h-dvh bg-gray-50 safe-top">
 
-      {/* Header */}
       <div className="flex items-center justify-between px-5 py-3 bg-white border-b border-gray-200 shrink-0">
         <button onClick={() => navigate('/dashboard')}
           className="w-9 h-9 rounded-full bg-gray-200 text-gray-700 flex items-center justify-center">
@@ -248,7 +245,6 @@ export const AddExpense: React.FC = () => {
 
       <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
 
-        {/* ── Step: Fahrzeug ── */}
         {step === 'vehicle-select' && (
           <>
             {isLoadingVehicles ? (
@@ -257,7 +253,6 @@ export const AddExpense: React.FC = () => {
               </div>
             ) : (
               <>
-                {/* Fahrzeug */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Fahrzeug</label>
                   <div className="space-y-2">
@@ -285,16 +280,15 @@ export const AddExpense: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Ausgaben-Typ */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Ausgaben-Typ</label>
                   <div className="flex gap-3">
-                    {(['tanken', 'laden'] as ExpenseType[]).map(t => (
+                    {(['fuel', 'charge'] as ExpenseType[]).map(t => (
                       <button key={t} onClick={() => setExpenseType(t)}
                         className={['flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl border-2 font-bold transition-colors',
                           expenseType === t ? 'bg-brand-700 border-brand-700 text-white' : 'bg-white border-gray-200 text-gray-700'].join(' ')}>
-                        <span className="text-xl">{t === 'tanken' ? '⛽' : '⚡'}</span>
-                        {t === 'tanken' ? 'Tanken' : 'Laden'}
+                        <span className="text-xl">{t === 'fuel' ? '⛽' : '⚡'}</span>
+                        {t === 'fuel' ? 'Tanken' : 'Laden'}
                       </button>
                     ))}
                   </div>
@@ -302,20 +296,22 @@ export const AddExpense: React.FC = () => {
 
                 <button
                   onClick={handleVehicleSubmit}
-                  disabled={!selectedVehicle}
-                  className="w-full py-4 bg-brand-700 text-white rounded-2xl font-bold text-lg shadow-md active:scale-95 transition-transform disabled:opacity-40 flex items-center justify-center gap-3">
+                  className="w-full py-4 bg-brand-700 text-white rounded-2xl font-bold text-lg shadow-md active:scale-95 transition-transform flex items-center justify-center gap-3">
                   <span className="text-xl">📷</span>
                   Beleg fotografieren
                 </button>
+                {!selectedVehicle && vehicles.length > 0 && (
+                  <p className="text-center text-xs text-gray-400">
+                    Kein Fahrzeug ausgewählt — du kannst trotzdem fortfahren.
+                  </p>
+                )}
               </>
             )}
           </>
         )}
 
-        {/* ── Step: Metadaten ── */}
-        {step === 'meta' && imageData && selectedVehicle && (
+        {step === 'meta' && imageData && (
           <>
-            {/* Vorschau-Bild */}
             <div className="relative bg-black rounded-2xl overflow-hidden">
               <img src={imageData} alt="Beleg" className="w-full max-h-48 object-contain" />
               <button onClick={() => setStep('camera')}
@@ -324,19 +320,19 @@ export const AddExpense: React.FC = () => {
               </button>
             </div>
 
-            {/* Fahrzeug (readonly) */}
             <div className="bg-brand-50 border border-brand-100 rounded-xl px-4 py-3 flex items-center gap-3">
-              <span className="text-xl">🚗</span>
+              <span className="text-xl">{selectedVehicle ? '🚗' : '📋'}</span>
               <div>
                 <p className="text-xs font-semibold text-brand-700 uppercase tracking-wide">Fahrzeug</p>
-                <p className="text-sm font-bold text-brand-900">{selectedVehicle.model} · {selectedVehicle.license_plate}</p>
+                <p className="text-sm font-bold text-brand-900">
+                  {selectedVehicle ? `${selectedVehicle.model} · ${selectedVehicle.license_plate}` : 'Kein Fahrzeug'}
+                </p>
               </div>
               <span className="ml-auto text-sm font-semibold text-brand-700">
-                {expenseType === 'tanken' ? '⛽ Tanken' : '⚡ Laden'}
+                {expenseType === 'fuel' ? '⛽ Tanken' : '⚡ Laden'}
               </span>
             </div>
 
-            {/* Betrag */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">
                 Betrag <span className="text-red-500">*</span>
@@ -353,7 +349,6 @@ export const AddExpense: React.FC = () => {
               {errors.betrag && <p className="text-red-500 text-xs mt-1">{errors.betrag}</p>}
             </div>
 
-            {/* Projekt */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">
                 Projekt / Kunde <span className="text-red-500">*</span>
@@ -367,7 +362,6 @@ export const AddExpense: React.FC = () => {
               {errors.projekt && <p className="text-red-500 text-xs mt-1">{errors.projekt}</p>}
             </div>
 
-            {/* Datum */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">
                 Datum <span className="text-red-500">*</span>
@@ -381,12 +375,11 @@ export const AddExpense: React.FC = () => {
               {errors.datum && <p className="text-red-500 text-xs mt-1">{errors.datum}</p>}
             </div>
 
-            {/* Dateiname-Vorschau */}
             <div className="bg-brand-50 border border-brand-100 rounded-xl px-4 py-3">
               <p className="text-xs text-brand-700 font-semibold uppercase tracking-wide mb-1">Dateiname</p>
               <p className="text-sm text-brand-900 font-mono break-all">
                 {betrag && datum
-                  ? buildFileName({ betrag: betrag.trim(), projekt: projekt.trim() || '…', datum: datum.trim(), zusatz: selectedVehicle.license_plate })
+                  ? buildFileName({ betrag: betrag.trim(), projekt: projekt.trim() || '…', datum: datum.trim(), ...(selectedVehicle ? { zusatz: selectedVehicle.license_plate } : {}) })
                   : '—'}
               </p>
             </div>

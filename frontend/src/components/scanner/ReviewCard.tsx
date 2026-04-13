@@ -7,9 +7,9 @@ export interface ReviewMeta {
   betrag:      string
   projekt:     string
   datum:       string
-  zusatz:      string   // Kennzeichen
+  zusatz:      string   // Kennzeichen (leer wenn kein Fahrzeug)
   expenseType: ExpenseType
-  vehicleId:   string
+  vehicleId:   string | null
   fileName:    string
   vehicleModel: string
 }
@@ -17,7 +17,6 @@ export interface ReviewMeta {
 interface Props {
   imageDataUrl: string
   meta:         ReviewMeta
-  folderPath:   string
   onConfirm:    (finalFilename: string, imageDataUrl: string) => void
   onBack:       () => void
   uploading?:   boolean
@@ -25,7 +24,7 @@ interface Props {
 }
 
 export default function ReviewCard({
-  imageDataUrl, meta, folderPath, onConfirm, onBack,
+  imageDataUrl, meta, onConfirm, onBack,
   uploading = false, uploadError = null,
 }: Props) {
   const [filename,   setFilename]   = useState(meta.fileName)
@@ -98,12 +97,11 @@ export default function ReviewCard({
 
         {/* Metadaten */}
         <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden divide-y divide-gray-100">
-          <Row label="Betrag"       value={`${meta.betrag} €`} accent />
-          <Row label="Typ"          value={meta.expenseType === 'tanken' ? '⛽ Tanken' : '⚡ Laden'} />
-          <Row label="Fahrzeug"     value={`${meta.vehicleModel} · ${meta.zusatz}`} />
-          <Row label="Projekt"      value={meta.projekt} />
-          <Row label="Datum"        value={meta.datum} />
-          <Row label="Dropbox"      value={folderPath} mono />
+          <Row label="Betrag"   value={`${meta.betrag} €`} accent />
+          <Row label="Typ"      value={meta.expenseType === 'fuel' ? '⛽ Tanken' : '⚡ Laden'} />
+          <Row label="Fahrzeug" value={meta.vehicleId ? `${meta.vehicleModel} · ${meta.zusatz}` : 'Kein Fahrzeug'} />
+          <Row label="Projekt"  value={meta.projekt} />
+          <Row label="Datum"    value={meta.datum} />
         </div>
 
         {/* Dateiname */}
@@ -120,7 +118,7 @@ export default function ReviewCard({
                 className="w-full px-4 py-3 rounded-xl border-2 border-brand-500 bg-white font-mono text-sm text-gray-900 outline-none" />
             : <div className="bg-white border border-gray-200 rounded-xl px-4 py-3 font-mono text-sm text-gray-900 break-all">{filename}</div>
           }
-          <p className="font-mono text-xs text-gray-400 mt-1.5 truncate">{folderPath}/{filename}</p>
+          <p className="font-mono text-xs text-gray-400 mt-1.5 truncate">{filename}</p>
         </div>
 
         {uploadError && (
@@ -136,7 +134,7 @@ export default function ReviewCard({
 
       <div className="px-5 py-4 bg-white border-t border-gray-200 space-y-3">
         <Button loading={uploading || processing} onClick={() => onConfirm(filename, displayUrl)}>
-          {processing ? 'Filter wird angewendet…' : uploading ? 'Wird gespeichert…' : 'Ausgabe speichern'}
+          {processing ? 'Filter wird angewendet…' : uploading ? 'Wird gespeichert…' : 'Speichern & Teilen'}
         </Button>
         {!uploading && !processing && (
           <Button variant="secondary" onClick={onBack}>Metadaten ändern</Button>

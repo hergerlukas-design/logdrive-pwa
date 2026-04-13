@@ -2,6 +2,10 @@ app = 'logdrive-pwa'
 primary_region = 'fra'
 
 [build]
+  [build.args]
+    VITE_SUPABASE_URL     = "https://fwjkfmosgpgovjjxlptj.supabase.co"
+    VITE_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ3amtmbW9zZ3Bnb3ZqanhscHRqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1NDM5ODgsImV4cCI6MjA5MDExOTk4OH0.-ZTVQ7txn7tZIghbnGIySmM7qmLJ6IyZr71OcpsBIlg"
+    VITE_DROPBOX_APP_KEY  = "wsb77kia38i0qhd"
 
 [http_service]
   internal_port = 8080

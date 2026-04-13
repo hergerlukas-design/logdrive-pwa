@@ -1,10 +1,11 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Loader2 } from 'lucide-react';
 
 export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, isLoading } = useAuth();
+  const location = useLocation();
 
   // Solange Supabase den Status prüft, zeigen wir einen Lade-Spinner
   if (isLoading) {
@@ -15,9 +16,11 @@ export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ childr
     );
   }
 
-  // Wenn kein User gefunden wurde -> Zurück zum Login
+  // Wenn kein User gefunden wurde -> Zurück zum Login (mit ?next= für Redirect nach Login)
   if (!user) {
-    return <Navigate to="/login" replace />;
+    const next = location.pathname + location.search
+    const loginPath = next === '/dashboard' ? '/login' : `/login?next=${encodeURIComponent(next)}`
+    return <Navigate to={loginPath} replace />;
   }
 
   // User ist autorisiert -> Zeige die gewünschte Seite (z.B. Dashboard)

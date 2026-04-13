@@ -6,7 +6,8 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
-export type ExpenseType = 'tanken' | 'laden'
+export type ExpenseType = 'fuel' | 'charge'
+export type TripPurpose = 'dienstlich' | 'privat' | 'arbeitsweg'
 
 export interface Database {
   public: {
@@ -48,6 +49,8 @@ export interface Database {
           end_km: number | null
           start_location: string
           end_location: string | null
+          purpose: TripPurpose
+          business_partner: string | null
           timestamp: string
           created_at: string
         }
@@ -60,6 +63,8 @@ export interface Database {
           end_km?: number | null
           start_location: string
           end_location?: string | null
+          purpose: TripPurpose
+          business_partner?: string | null
           timestamp: string
           created_at?: string
         }
@@ -72,6 +77,8 @@ export interface Database {
           end_km?: number | null
           start_location?: string
           end_location?: string | null
+          purpose?: TripPurpose
+          business_partner?: string | null
           timestamp?: string
           created_at?: string
         }
@@ -88,35 +95,32 @@ export interface Database {
       expenses: {
         Row: {
           id: string
-          vehicle_id: string
-          user_id: string
+          vehicle_id: string | null
+          driver_id: string
           amount: number
-          expense_type: ExpenseType
-          project: string | null
+          type: ExpenseType
+          dropbox_link: string | null
           date: string
-          dropbox_path: string | null
           created_at: string
         }
         Insert: {
           id?: string
-          vehicle_id: string
-          user_id: string
+          vehicle_id?: string | null
+          driver_id: string
           amount: number
-          expense_type: ExpenseType
-          project?: string | null
+          type: ExpenseType
+          dropbox_link?: string | null
           date: string
-          dropbox_path?: string | null
           created_at?: string
         }
         Update: {
           id?: string
-          vehicle_id?: string
-          user_id?: string
+          vehicle_id?: string | null
+          driver_id?: string
           amount?: number
-          expense_type?: ExpenseType
-          project?: string | null
+          type?: ExpenseType
+          dropbox_link?: string | null
           date?: string
-          dropbox_path?: string | null
           created_at?: string
         }
         Relationships: [

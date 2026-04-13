@@ -101,7 +101,7 @@ export const Dashboard: React.FC = () => {
     if (currentUserId) checkActiveTrip(currentUserId)
   }, [currentUserId, checkActiveTrip, nfcVehicleId])
 
-  // Kilometer automatisch laden wenn Fahrzeug gewählt
+  // Kilometer + letzter Zielort automatisch laden wenn Fahrzeug gewählt
   useEffect(() => {
     if (!selectedVehicleId || activeTrip) return
     setIsFetchingMileage(true)
@@ -110,6 +110,11 @@ export const Dashboard: React.FC = () => {
         if (error) setErrorMsg(`DB-Fehler (KM): ${error.message}`)
         else if (data) setStartKm(data.current_mileage)
         setIsFetchingMileage(false)
+      })
+    supabase.from('trips').select('end_location').eq('vehicle_id', selectedVehicleId)
+      .not('end_location', 'is', null).order('timestamp', { ascending: false }).limit(1).single()
+      .then(({ data }) => {
+        if (data?.end_location) setStartLocation(data.end_location)
       })
   }, [selectedVehicleId, activeTrip])
 
