@@ -34,7 +34,7 @@ export const AddExpense: React.FC = () => {
   const [step,             setStep]            = useState<Step>('vehicle-select')
   const [vehicles,         setVehicles]        = useState<Vehicle[]>([])
   const [selectedVehicle,  setSelectedVehicle] = useState<Vehicle | null>(null)
-  const [expenseType,      setExpenseType]     = useState<ExpenseType>('tanken')
+  const [expenseType,      setExpenseType]     = useState<ExpenseType>('fuel')
   const [imageData,        setImageData]       = useState<string | null>(null)
   const [meta,             setMeta]            = useState<ReviewMeta | null>(null)
   const [uploading,        setUploading]       = useState(false)
@@ -140,11 +140,14 @@ export const AddExpense: React.FC = () => {
         zusatz:  meta.zusatz,
       })
 
-      let dropboxPath: string | null = null
+      let dropboxLink: string | null = null
 
       if (navigator.onLine && isDropboxConnected()) {
-        await uploadPdfToDropbox(pdfBlob, finalFilename, folderPath)
-        dropboxPath = `${folderPath}/${finalFilename}`
+        const uploaded = await uploadPdfToDropbox(pdfBlob, finalFilename, folderPath) as { path_display?: string }
+        // Dropbox benennt bei Namenskonflikten um – daher den tatsächlichen Pfad verwenden
+        const fullPath = uploaded.path_display ?? `${folderPath}/${finalFilename}`
+        const slash    = fullPath.lastIndexOf('/')
+        dropboxLink = `https://www.dropbox.com/home${encodeURI(fullPath.slice(0, slash))}?preview=${encodeURIComponent(fullPath.slice(slash + 1))}`
         setWasQueued(false)
       } else {
         await addToQueue({ pdfBlob, fileName: finalFilename, folderPath })
@@ -154,12 +157,11 @@ export const AddExpense: React.FC = () => {
       // Immer in Supabase speichern
       const { error: dbError } = await supabase.from('expenses').insert({
         vehicle_id:   meta.vehicleId,
-        user_id:      user.id,
+        driver_id:    user.id,
         amount:       amountNum,
-        expense_type: meta.expenseType,
-        project:      meta.projekt,
+        type:         meta.expenseType,
         date:         isoDate,
-        dropbox_path: dropboxPath,
+        dropbox_link: dropboxLink,
       })
 
       if (dbError) throw new Error(`DB-Fehler: ${dbError.message}`)
@@ -289,12 +291,12 @@ export const AddExpense: React.FC = () => {
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Ausgaben-Typ</label>
                   <div className="flex gap-3">
-                    {(['tanken', 'laden'] as ExpenseType[]).map(t => (
+                    {(['fuel', 'charge'] as ExpenseType[]).map(t => (
                       <button key={t} onClick={() => setExpenseType(t)}
                         className={['flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl border-2 font-bold transition-colors',
                           expenseType === t ? 'bg-brand-700 border-brand-700 text-white' : 'bg-white border-gray-200 text-gray-700'].join(' ')}>
-                        <span className="text-xl">{t === 'tanken' ? '⛽' : '⚡'}</span>
-                        {t === 'tanken' ? 'Tanken' : 'Laden'}
+                        <span className="text-xl">{t === 'fuel' ? '⛽' : '⚡'}</span>
+                        {t === 'fuel' ? 'Tanken' : 'Laden'}
                       </button>
                     ))}
                   </div>
@@ -332,7 +334,7 @@ export const AddExpense: React.FC = () => {
                 <p className="text-sm font-bold text-brand-900">{selectedVehicle.model} · {selectedVehicle.license_plate}</p>
               </div>
               <span className="ml-auto text-sm font-semibold text-brand-700">
-                {expenseType === 'tanken' ? '⛽ Tanken' : '⚡ Laden'}
+                {expenseType === 'fuel' ? '⛽ Tanken' : '⚡ Laden'}
               </span>
             </div>
 

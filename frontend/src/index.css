@@ -18,3 +18,197 @@ canvas {
 
 .safe-top    { padding-top: env(safe-area-inset-top); }
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+
+/* ── Retro-Dark-Design ─────────────────────────────────────────────────────
+   Aktiv, wenn <html> die Klasse .theme-retro trägt (Schalter in Einstellungen).
+   Überschreibt die Tailwind-Farbklassen, damit die Seiten selbst unverändert bleiben. */
+.theme-retro {
+  --retro-bg:        #0b0b0c;
+  --retro-surface:   #141416;
+  --retro-surface-2: #1a1a1d;
+  --retro-line:      #3a3a40;
+  --retro-line-soft: #2a2a2e;
+  --retro-text:      #ededed;
+  --retro-muted:     #a9b0b8;
+  --retro-dim:       #8a9097;
+  --retro-accent:    #bc0120;
+  --retro-led:       #ff4a5c;
+  --retro-pink:      #e8747e;
+  --retro-purple:    #ac33e2;
+  color-scheme: dark;
+}
+.theme-retro body {
+  background: var(--retro-bg);
+  color: var(--retro-text);
+  font-family: 'Share Tech Mono', ui-monospace, monospace;
+}
+
+/* Typografie */
+.theme-retro h1,
+.theme-retro h2 {
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 900;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+.theme-retro label,
+.theme-retro .uppercase.tracking-wide {
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  font-size: 11px;
+}
+
+/* Flächen */
+.theme-retro .bg-gray-50   { background-color: var(--retro-bg); }
+.theme-retro .bg-white     { background-color: var(--retro-surface); }
+.theme-retro .bg-gray-100,
+.theme-retro .bg-gray-200  { background-color: var(--retro-surface-2); }
+.theme-retro .bg-gray-900  { background-color: var(--retro-surface-2); border: 1px solid var(--retro-line); }
+.theme-retro .bg-brand-50,
+.theme-retro .bg-brand-100 { background-color: rgba(188, 1, 32, 0.16); }
+.theme-retro .bg-red-50,
+.theme-retro .bg-red-100   { background-color: rgba(188, 1, 32, 0.14); }
+.theme-retro .bg-green-50,
+.theme-retro .bg-green-100 { background-color: rgba(74, 222, 128, 0.12); }
+.theme-retro .bg-amber-50,
+.theme-retro .bg-amber-100 { background-color: rgba(251, 191, 36, 0.14); }
+.theme-retro .bg-blue-100  { background-color: rgba(232, 116, 126, 0.16); }
+.theme-retro .bg-purple-100{ background-color: rgba(172, 51, 226, 0.2); }
+
+/* Primär-Buttons: rote Neon-Taste */
+.theme-retro .bg-brand-700,
+.theme-retro .bg-brand-600 {
+  background-color: var(--retro-accent);
+  box-shadow: 0 0 18px rgba(188, 1, 32, 0.55);
+}
+.theme-retro button.bg-brand-700.w-full {
+  font-family: 'Orbitron', sans-serif;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border: 1px solid var(--retro-led);
+}
+
+/* Text */
+.theme-retro .text-gray-900,
+.theme-retro .text-gray-800 { color: var(--retro-text); }
+.theme-retro .text-gray-700,
+.theme-retro .text-gray-600 { color: #c2c2c2; }
+.theme-retro .text-gray-500 { color: var(--retro-muted); }
+.theme-retro .text-gray-400 { color: var(--retro-dim); }
+.theme-retro .text-gray-300 { color: #6b7178; }
+.theme-retro .text-brand-700,
+.theme-retro .text-brand-600,
+.theme-retro .text-brand-500 { color: var(--retro-led); text-shadow: 0 0 6px var(--retro-accent); }
+.theme-retro .text-brand-800,
+.theme-retro .text-brand-900 { color: var(--retro-pink); }
+.theme-retro .text-brand-200 { color: #ffd6db; }
+.theme-retro .text-red-700,
+.theme-retro .text-red-600,
+.theme-retro .text-red-500,
+.theme-retro .text-red-400 { color: var(--retro-led); }
+.theme-retro .text-green-800,
+.theme-retro .text-green-700 { color: #4ade80; }
+.theme-retro .text-amber-800,
+.theme-retro .text-amber-700,
+.theme-retro .text-amber-600 { color: #fbbf24; }
+.theme-retro .text-blue-700   { color: var(--retro-pink); }
+.theme-retro .text-purple-700 { color: #c77dff; }
+
+/* Linien */
+.theme-retro .border-gray-200 { border-color: var(--retro-line); }
+.theme-retro .border-gray-100,
+.theme-retro .border-gray-50  { border-color: var(--retro-line-soft); }
+.theme-retro .divide-gray-100 > :not([hidden]) ~ :not([hidden]) { border-color: var(--retro-line-soft); }
+.theme-retro .border-red-200,
+.theme-retro .border-red-300  { border-color: #7a2a33; }
+.theme-retro .border-red-400  { border-color: var(--retro-led); }
+.theme-retro .border-green-200,
+.theme-retro .border-green-300,
+.theme-retro .border-green-400 { border-color: #2f7a4a; }
+.theme-retro .border-amber-200,
+.theme-retro .border-amber-300 { border-color: #7a5a1a; }
+.theme-retro .border-brand-100,
+.theme-retro .border-brand-200,
+.theme-retro .border-brand-300 { border-color: #7a2a33; }
+.theme-retro .focus\:border-brand-500:focus { border-color: var(--retro-accent); }
+
+/* Formularfelder: dunkles Display */
+.theme-retro input,
+.theme-retro select,
+.theme-retro textarea {
+  background-color: var(--retro-surface);
+  color: var(--retro-text);
+}
+.theme-retro input[type='number'] {
+  color: var(--retro-led);
+  text-shadow: 0 0 6px var(--retro-accent);
+  letter-spacing: 0.1em;
+}
+.theme-retro input::placeholder { color: #6b7178; }
+
+/* Eckig statt rund, keine weichen Schatten */
+.theme-retro .rounded-xl,
+.theme-retro .rounded-2xl,
+.theme-retro .rounded-3xl { border-radius: 4px; }
+.theme-retro .shadow-sm,
+.theme-retro .shadow-md,
+.theme-retro .shadow-lg { --tw-shadow: 0 0 #0000; }
+
+/* Header mit Sonnenuntergang-Gitter */
+.retro-header {
+  position: relative;
+  height: 226px;
+  flex-shrink: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 24px;
+  box-sizing: border-box;
+  border-bottom: 2px solid var(--retro-accent);
+}
+.theme-retro .retro-header__title {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  font-family: 'Audiowide', sans-serif;
+  font-weight: 400;
+  font-size: 40px;
+  letter-spacing: 3px;
+  color: var(--retro-text);
+  text-shadow: 0 0 6px var(--retro-accent), 0 0 18px var(--retro-accent), 3px 3px 0 var(--retro-accent);
+}
+.retro-header__subtitle {
+  position: relative;
+  z-index: 1;
+  margin: -1px 0 0;
+  font-size: 11px;
+  letter-spacing: 6px;
+  color: var(--retro-purple);
+}
+.retro-header__logo {
+  position: absolute;
+  left: 50%;
+  top: 65px;
+  width: 137px;
+  height: 146px;
+  margin-left: -65px;
+  filter: drop-shadow(0 0 10px var(--retro-accent));
+}
+.retro-header__grid {
+  position: absolute;
+  left: -50%;
+  right: -50%;
+  top: 44px;
+  bottom: -10px;
+  background-color: #6e2971ba;
+  background-image:
+    linear-gradient(var(--retro-pink) 1.5px, transparent 1.5px),
+    linear-gradient(90deg, var(--retro-pink) 1.5px, transparent 1.5px);
+  background-size: 32px 16px;
+  transform: perspective(160px) rotateX(55deg);
+  transform-origin: bottom;
+  opacity: 0.75;
+}

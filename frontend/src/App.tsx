@@ -2,6 +2,7 @@ import React from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider }    from './context/AuthContext'
 import { TripProvider }    from './context/TripContext'
+import { ThemeProvider }   from './context/ThemeContext'
 import { Login }          from './pages/Login'
 import { Signup }         from './pages/Signup'
 import { Dashboard }      from './pages/Dashboard'
@@ -12,6 +13,7 @@ import { Impressum }      from './pages/Impressum'
 import { Datenschutz }    from './pages/Datenschutz'
 
 const App: React.FC = () => (
+  <ThemeProvider>
   <AuthProvider>
     <TripProvider>
       <Router>
@@ -39,6 +41,7 @@ const App: React.FC = () => (
       </Router>
     </TripProvider>
   </AuthProvider>
+  </ThemeProvider>
 )
 
 export default App

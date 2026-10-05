@@ -99,7 +99,7 @@ export default function ReviewCard({
         {/* Metadaten */}
         <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden divide-y divide-gray-100">
           <Row label="Betrag"       value={`${meta.betrag} €`} accent />
-          <Row label="Typ"          value={meta.expenseType === 'tanken' ? '⛽ Tanken' : '⚡ Laden'} />
+          <Row label="Typ"          value={meta.expenseType === 'fuel' ? '⛽ Tanken' : '⚡ Laden'} />
           <Row label="Fahrzeug"     value={`${meta.vehicleModel} · ${meta.zusatz}`} />
           <Row label="Projekt"      value={meta.projekt} />
           <Row label="Datum"        value={meta.datum} />
