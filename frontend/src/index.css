@@ -212,3 +212,99 @@ canvas {
   transform-origin: bottom;
   opacity: 0.75;
 }
+
+/* Fahrt-Formular im Retro-Design: Layout wie im Entwurf.
+   Raster mit `order`, damit die Reihenfolge im hellen Design unverändert bleibt. */
+.theme-retro .trip-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 12px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+.theme-retro .trip-form > * { grid-column: 1 / -1; margin-top: 0; }
+.theme-retro .trip-form .trip-head      { display: none; }
+.theme-retro .trip-form .trip-vehicle   { order: 1; }
+.theme-retro .trip-form .trip-km        { order: 2; grid-column: auto; }
+.theme-retro .trip-form .trip-location  { order: 3; grid-column: auto; }
+.theme-retro .trip-form .trip-purpose   { order: 4; }
+.theme-retro .trip-form .trip-partner   { order: 5; }
+.theme-retro .trip-form .trip-datetime  { order: 6; }
+.theme-retro .trip-form .trip-submit    { order: 7; margin-top: 8px; }
+
+.theme-retro .trip-form label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--retro-muted);
+  font-size: 11px;
+  letter-spacing: 3px;
+}
+.theme-retro .trip-form input,
+.theme-retro .trip-form select {
+  height: 52px;
+  padding: 12px;
+  font-size: 17px;
+  font-weight: 400;
+  border-width: 1px;
+  border-color: var(--retro-line);
+  border-radius: 4px;
+}
+.theme-retro .trip-form select { color: var(--retro-led); }
+.theme-retro .trip-form .trip-km input {
+  background: #140406;
+  font-size: 22px;
+  letter-spacing: 3px;
+  line-height: 1;
+}
+.theme-retro .trip-form .trip-km input::placeholder { color: #7a2a33; text-shadow: none; }
+.theme-retro .trip-form .trip-partner input { border-left: 3px solid var(--retro-accent); }
+
+/* Reisezweck: Konsolentasten mit LED */
+.theme-retro .trip-form .trip-purpose > div {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.theme-retro .purpose-btn,
+.theme-retro .purpose-btn.is-active {
+  min-height: 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0;
+  background: var(--retro-surface-2);
+  border: 1px solid var(--retro-line);
+  border-radius: 4px;
+  box-shadow: none;
+  color: var(--retro-dim);
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 500;
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.theme-retro .purpose-btn.is-active { color: var(--retro-text); }
+.theme-retro .purpose-led {
+  width: 22px;
+  height: 6px;
+  border-radius: 2px;
+  background: #3a1016;
+}
+.theme-retro .purpose-btn.is-active .purpose-led {
+  background: var(--retro-led);
+  box-shadow: 0 0 8px var(--retro-accent);
+}
+
+/* Start-Taste */
+.theme-retro .trip-form .trip-submit {
+  min-height: 54px;
+  padding: 14px;
+  font-weight: 900;
+  font-size: 16px;
+  letter-spacing: 4px;
+  border-radius: 4px;
+}
