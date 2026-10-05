@@ -11,6 +11,7 @@ import { AddExpense }     from './pages/AddExpense'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { Impressum }      from './pages/Impressum'
 import { Datenschutz }    from './pages/Datenschutz'
+import { UpdatePrompt }   from './components/UpdatePrompt'
 
 const App: React.FC = () => (
   <ThemeProvider>
@@ -39,6 +40,7 @@ const App: React.FC = () => (
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </Router>
+      <UpdatePrompt />
     </TripProvider>
   </AuthProvider>
   </ThemeProvider>

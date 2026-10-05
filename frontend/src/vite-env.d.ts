@@ -1,4 +1,5 @@
 /// <reference types="vite/client" />
+/// <reference types="vite-plugin-pwa/react" />
 
 interface ImportMetaEnv {
   // Hier definieren wir unsere exakten Umgebungsvariablen für perfekte Typsicherheit
