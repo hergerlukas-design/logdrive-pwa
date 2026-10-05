@@ -770,6 +770,10 @@ export const Dashboard: React.FC = () => {
               className="w-full py-3 border-2 border-red-200 text-red-600 rounded-2xl font-semibold active:scale-95 transition-transform">
               Abmelden
             </button>
+
+            <p className="text-center text-xs text-gray-400">
+              LogDrive v{__APP_VERSION__} · Build {new Date(__BUILD_TIME__).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}
+            </p>
           </div>
         )}
       </main>
