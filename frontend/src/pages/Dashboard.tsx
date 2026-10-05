@@ -4,6 +4,8 @@ import { supabase } from '../lib/supabase'
 import type { Database, TripPurpose } from '../lib/database.types'
 import { useTrip }  from '../context/TripContext'
 import { useAuth }  from '../context/AuthContext'
+import { useTheme } from '../context/ThemeContext'
+import { RetroHeader } from '../components/RetroHeader'
 import { buildFahrtenbuchPdf } from '../lib/pdfBuilder'
 
 type Vehicle = Database['public']['Tables']['vehicles']['Row']
@@ -20,6 +22,8 @@ function toDateTimeLocal(d: Date): string {
 export const Dashboard: React.FC = () => {
   const { activeTrip, isLoadingActiveTrip, checkActiveTrip, clearActiveTrip } = useTrip()
   const { user }    = useAuth()
+  const { theme, setTheme } = useTheme()
+  const isRetro     = theme === 'retro'
   const navigate    = useNavigate()
   const { vehicleId: nfcVehicleId } = useParams<{ vehicleId?: string }>()
   const [tab, setTab] = useState<Tab>('fahrt')
@@ -259,6 +263,8 @@ export const Dashboard: React.FC = () => {
 
       {/* ── Main Content ── */}
       <main className="flex-1 min-h-0 flex flex-col overflow-y-auto">
+
+        {isRetro && <RetroHeader />}
 
         {/* Tab: Fahrt */}
         {tab === 'fahrt' && (
@@ -662,6 +668,26 @@ export const Dashboard: React.FC = () => {
         {tab === 'einstellungen' && (
           <div className="px-5 pt-5 pb-4 space-y-5">
             <h1 className="text-xl font-bold text-gray-900">Einstellungen</h1>
+
+            {/* Darstellung */}
+            <section className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-100">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Darstellung</p>
+              </div>
+              <button type="button" role="switch" aria-checked={isRetro}
+                onClick={() => setTheme(isRetro ? 'light' : 'retro')}
+                className="w-full px-4 py-3 flex items-center gap-3 text-left">
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-gray-900">Retro-Dark-Design</p>
+                  <p className="text-xs text-gray-500">Dunkles 80er-Design mit Neon-Akzenten</p>
+                </div>
+                <span className={['relative shrink-0 w-12 h-7 rounded-full transition-colors',
+                  isRetro ? 'bg-brand-700' : 'bg-gray-200'].join(' ')}>
+                  <span className={['absolute top-1 left-1 w-5 h-5 rounded-full bg-white shadow transition-transform',
+                    isRetro ? 'translate-x-5' : ''].join(' ')} />
+                </span>
+              </button>
+            </section>
 
             {/* Fahrzeug */}
             <section className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
