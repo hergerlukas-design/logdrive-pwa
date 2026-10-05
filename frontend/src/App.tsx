@@ -12,6 +12,7 @@ import { ProtectedRoute } from './components/ProtectedRoute'
 import { Impressum }      from './pages/Impressum'
 import { Datenschutz }    from './pages/Datenschutz'
 import { UpdatePrompt }   from './components/UpdatePrompt'
+import { UploadQueueSync } from './components/UploadQueueSync'
 
 const App: React.FC = () => (
   <ThemeProvider>
@@ -41,6 +42,7 @@ const App: React.FC = () => (
         </Routes>
       </Router>
       <UpdatePrompt />
+      <UploadQueueSync />
     </TripProvider>
   </AuthProvider>
   </ThemeProvider>
