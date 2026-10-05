@@ -221,7 +221,7 @@ export const Dashboard: React.FC = () => {
       .lt('timestamp', yearEnd)
       .order('timestamp', { ascending: true })
     if (error || !data) { setErrorMsg(`Fehler beim Export: ${error?.message}`); setIsExporting(false); return }
-    const blob = buildFahrtenbuchPdf({
+    const blob = await buildFahrtenbuchPdf({
       trips: data,
       vehicle,
       driverName: user?.email ?? 'Unbekannt',
