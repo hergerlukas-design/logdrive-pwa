@@ -27,7 +27,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       # Erhöht die Patch-Version in frontend/package.json und package-lock.json
       - name: Bump patch version
