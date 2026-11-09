@@ -6,6 +6,10 @@ import { readFileSync } from 'node:fs'
 const { version } = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf-8')) as { version: string }
 
 export default defineConfig({
+  build: {
+    // three.js (Fahrzeug-Kartei, 3D) liegt in einem eigenen, nachgeladenen Chunk von knapp 1 MB
+    chunkSizeWarningLimit: 1000,
+  },
   // In Einstellungen angezeigt, damit sichtbar ist, welcher Stand läuft
   define: {
     __APP_VERSION__: JSON.stringify(version),

@@ -8,6 +8,8 @@ import { Signup }         from './pages/Signup'
 import { Dashboard }      from './pages/Dashboard'
 import { AddVehicle }     from './pages/AddVehicle'
 import { AddExpense }     from './pages/AddExpense'
+import { Garage }         from './pages/Garage'
+import { VehicleCard }    from './pages/VehicleCard'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { Impressum }      from './pages/Impressum'
 import { Datenschutz }    from './pages/Datenschutz'
@@ -33,6 +35,12 @@ const App: React.FC = () => (
           } />
           <Route path="/fahrzeug-hinzufuegen" element={
             <ProtectedRoute><AddVehicle /></ProtectedRoute>
+          } />
+          <Route path="/garage" element={
+            <ProtectedRoute><Garage /></ProtectedRoute>
+          } />
+          <Route path="/fahrzeuge/:vehicleId" element={
+            <ProtectedRoute><VehicleCard /></ProtectedRoute>
           } />
           <Route path="/ausgabe-erfassen" element={
             <ProtectedRoute><AddExpense /></ProtectedRoute>

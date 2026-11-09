@@ -694,18 +694,24 @@ export const Dashboard: React.FC = () => {
 
             {/* Fahrzeug */}
             <section className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-              <div className="px-4 py-3 border-b border-gray-100">
+              <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Fahrzeuge</p>
+                <button type="button" onClick={() => navigate('/garage')} className="text-xs font-semibold text-brand-700">
+                  Garage öffnen
+                </button>
               </div>
               {vehicles.map(v => {
                 const status = nfcStatus[v.id] ?? 'idle'
                 return (
                   <div key={v.id} className="px-4 py-3 flex items-center gap-3 border-b border-gray-50 last:border-0">
-                    <span>🚗</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-900 truncate">{v.model}</p>
-                      <p className="font-mono text-xs text-gray-500">{v.license_plate}</p>
-                    </div>
+                    <button type="button" onClick={() => navigate(`/fahrzeuge/${v.id}`)}
+                      className="flex-1 min-w-0 flex items-center gap-3 text-left">
+                      <span>🚗</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-gray-900 truncate">{v.model}</p>
+                        <p className="font-mono text-xs text-gray-500">{v.license_plate} · <span className="text-brand-700 font-sans font-semibold">Kartei öffnen</span></p>
+                      </div>
+                    </button>
                     {nfcSupported && (
                       <button
                         onClick={() => handleWriteNfc(v.id)}
@@ -794,13 +800,17 @@ export const Dashboard: React.FC = () => {
             icon: <><path d="M12 8v4l3 3"/><path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5"/></>,
           },
           {
+            id: 'garage' as Tab | 'garage', label: 'Garage', badge: 0,
+            icon: <><rect x="3" y="4" width="13" height="17" rx="2"/><path d="M8 4V2.5M7 9h5M7 13h5M7 17h3"/><path d="M16 7l4 1.2a1.5 1.5 0 0 1 1 1.8L18 20"/></>,
+          },
+          {
             id: 'einstellungen' as Tab, label: 'Einstellungen', badge: 0,
             icon: <><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></>,
           },
         ]).map(t => {
           const active = tab === t.id
           return (
-            <button key={t.id} onClick={() => setTab(t.id)}
+            <button key={t.id} onClick={() => t.id === 'garage' ? navigate('/garage') : setTab(t.id)}
               className="flex-1 flex flex-col items-center py-2 gap-0.5 relative">
               {active && <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-brand-700 rounded-full" />}
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"

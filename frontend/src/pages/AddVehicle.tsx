@@ -1,6 +1,9 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import type { BodyType } from '../lib/database.types'
+import { BODY_TYPES, PAINT_COLORS } from '../lib/kartei'
+import { CarSilhouette } from '../components/kartei/CarSilhouette'
 
 export const AddVehicle: React.FC = () => {
   const navigate = useNavigate()
@@ -8,6 +11,8 @@ export const AddVehicle: React.FC = () => {
   const [model,          setModel]          = useState('')
   const [licensePlate,   setLicensePlate]   = useState('')
   const [currentMileage, setCurrentMileage] = useState<number | ''>('')
+  const [bodyType,       setBodyType]       = useState<BodyType>('limousine')
+  const [color,          setColor]          = useState(PAINT_COLORS[0])
   const [isSubmitting,   setIsSubmitting]   = useState(false)
   const [errorMsg,       setErrorMsg]       = useState<string | null>(null)
 
@@ -27,19 +32,22 @@ export const AddVehicle: React.FC = () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setErrorMsg('Nicht eingeloggt.'); setIsSubmitting(false); return }
 
-    const { error } = await supabase.from('vehicles').insert({
+    const { data, error } = await supabase.from('vehicles').insert({
       user_id: user.id,
       model: model.trim(),
       license_plate: licensePlate.trim(),
       current_mileage: Number(currentMileage),
-    })
+      body_type: bodyType,
+      color,
+    }).select('id').single()
 
     if (error) {
       setErrorMsg(`Fehler beim Speichern: ${error.message}`)
       setIsSubmitting(false)
       return
     }
-    navigate('/dashboard')
+    // Direkt in die neue Kartei, dort lassen sich Reifen, HU usw. ergänzen
+    navigate(data ? `/fahrzeuge/${data.id}` : '/garage')
   }
 
   return (
@@ -99,6 +107,30 @@ export const AddVehicle: React.FC = () => {
               onChange={e => setCurrentMileage(e.target.value === '' ? '' : Number(e.target.value))}
             />
             <p className="text-xs text-gray-400 mt-1">Bitte den aktuellen Tachostand eintragen.</p>
+          </div>
+
+          {/* Bauform & Farbe – bestimmen das Modell in der Fahrzeug-Kartei */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Bauform & Farbe</label>
+            <div className="rounded-xl bg-gray-50 border border-gray-200 py-2 mb-3 flex justify-center">
+              <CarSilhouette bodyType={bodyType} color={color} className="w-3/4 h-24" />
+            </div>
+            <div className="flex flex-wrap gap-2 mb-3">
+              {BODY_TYPES.map(b => (
+                <button key={b.value} type="button" onClick={() => setBodyType(b.value)}
+                  className={'px-3 py-2 rounded-xl text-sm font-semibold border-2 transition-colors ' +
+                    (bodyType === b.value ? 'border-brand-700 bg-red-50 text-brand-700' : 'border-gray-200 bg-white text-gray-600')}>
+                  {b.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {PAINT_COLORS.map(c => (
+                <button key={c} type="button" aria-label={`Farbe ${c}`} onClick={() => setColor(c)}
+                  className="w-8 h-8 rounded-full border-2"
+                  style={{ background: c, borderColor: color === c ? '#111' : 'rgba(0,0,0,0.1)' }} />
+              ))}
+            </div>
           </div>
 
           <button type="submit" disabled={isSubmitting}
