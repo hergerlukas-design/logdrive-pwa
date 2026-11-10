@@ -1,9 +1,13 @@
 import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
 export const Login: React.FC = () => {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  // Nur interne Pfade zulassen (kein Open Redirect)
+  const rawNext = searchParams.get('next') ?? ''
+  const next = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/dashboard'
   const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -20,7 +24,7 @@ export const Login: React.FC = () => {
       setErrorMsg('Login fehlgeschlagen. Bitte überprüfe deine Daten.')
       setIsLoading(false)
     } else {
-      navigate('/dashboard', { replace: true })
+      navigate(next, { replace: true })
     }
   }
 

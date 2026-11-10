@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import type { Database, TripPurpose } from '../lib/database.types'
@@ -43,6 +43,8 @@ export const Dashboard: React.FC = () => {
   const [isFetchingMileage, setIsFetchingMileage] = useState(false)
   const [isSubmitting,      setIsSubmitting]      = useState(false)
   const [errorMsg,          setErrorMsg]          = useState<string | null>(null)
+  // Zuletzt automatisch übernommener Abfahrtsort (um manuelle Eingaben nicht zu überschreiben)
+  const prefilledStartLocation = useRef('')
 
   // ── Historie ──────────────────────────────────────────────────────────────
   const [pastTrips,        setPastTrips]        = useState<Trip[]>([])
@@ -117,6 +119,30 @@ export const Dashboard: React.FC = () => {
       })
   }, [selectedVehicleId, activeTrip])
 
+  // Letzten Zielort des Fahrzeugs als Abfahrtsort übernehmen
+  useEffect(() => {
+    if (!selectedVehicleId || activeTrip) return
+    let cancelled = false
+    supabase.from('trips').select('end_location')
+      .eq('vehicle_id', selectedVehicleId)
+      .not('end_km', 'is', null)
+      .not('end_location', 'is', null)
+      .order('timestamp', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (cancelled || error) return
+        const lastLocation = data?.end_location ?? ''
+        // Nur übernehmen, wenn das Feld leer ist oder noch den vorherigen Vorschlag enthält
+        setStartLocation(prev => {
+          if (prev !== '' && prev !== prefilledStartLocation.current) return prev
+          prefilledStartLocation.current = lastLocation
+          return lastLocation
+        })
+      })
+    return () => { cancelled = true }
+  }, [selectedVehicleId, activeTrip])
+
   // Fahrten-Historie
   useEffect(() => {
     if (!currentUserId) return
@@ -177,7 +203,7 @@ export const Dashboard: React.FC = () => {
     if (error) setErrorMsg(`Fehler: ${error.message}`)
     else {
       await checkActiveTrip(currentUserId)
-      setStartLocation(''); setTripDateTime(toDateTimeLocal(new Date()))
+      setStartLocation(''); prefilledStartLocation.current = ''; setTripDateTime(toDateTimeLocal(new Date()))
       setTripPurpose('dienstlich'); setBusinessPartner('')
     }
     setIsSubmitting(false)
