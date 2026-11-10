@@ -10,6 +10,7 @@ import { AddVehicle }     from './pages/AddVehicle'
 import { AddExpense }     from './pages/AddExpense'
 import { Garage }         from './pages/Garage'
 import { VehicleCard }    from './pages/VehicleCard'
+import { SpinCapture }    from './pages/SpinCapture'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { Impressum }      from './pages/Impressum'
 import { Datenschutz }    from './pages/Datenschutz'
@@ -41,6 +42,9 @@ const App: React.FC = () => (
           } />
           <Route path="/fahrzeuge/:vehicleId" element={
             <ProtectedRoute><VehicleCard /></ProtectedRoute>
+          } />
+          <Route path="/fahrzeuge/:vehicleId/fotos" element={
+            <ProtectedRoute><SpinCapture /></ProtectedRoute>
           } />
           <Route path="/ausgabe-erfassen" element={
             <ProtectedRoute><AddExpense /></ProtectedRoute>

@@ -13,7 +13,7 @@ export type FuelType    = 'benzin' | 'diesel' | 'elektro' | 'hybrid' | 'plugin_h
 export type TireSeason  = 'sommer' | 'winter' | 'ganzjahr'
 export type ServiceType = 'oelwechsel' | 'inspektion' | 'reifenwechsel' | 'hu' | 'reparatur' | 'sonstiges'
 /** Kartei-Abschnitte, die ein freigegebener Fahrer bearbeiten darf */
-export type VehicleSection = 'reifen' | 'wartung' | 'notizen'
+export type VehicleSection = 'reifen' | 'wartung' | 'notizen' | 'fotos'
 
 export interface Database {
   public: {
@@ -260,6 +260,32 @@ export interface Database {
           created_at?: string
         }
         Update: Partial<Database['public']['Tables']['vehicle_service_log']['Insert']>
+        Relationships: []
+      }
+      vehicle_spins: {
+        Row: {
+          id: string
+          vehicle_id: string
+          frame_count: number
+          files: string[]
+          front_frame: number
+          reverse: boolean
+          aspect: number
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          vehicle_id: string
+          frame_count: number
+          files: string[]
+          front_frame?: number
+          reverse?: boolean
+          aspect?: number
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['vehicle_spins']['Insert']>
         Relationships: []
       }
       vehicle_notes: {

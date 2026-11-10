@@ -1,16 +1,18 @@
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ChevronLeft, Wrench, NotebookPen, Users } from 'lucide-react'
+import { ChevronLeft, Wrench, NotebookPen, Users, Camera } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import type { VehicleSection } from '../lib/database.types'
 import {
   HOTSPOT_SHEET, SHEET_TITLE, SHEET_SECTION, SECTION_LABEL, cardCode, dateLevel, kmLevel, treadLevel, fmtDate, worst,
-  type Vehicle, type TireSet, type ServiceEntry, type VehicleNote, type VehicleMember, type SheetId, type HotspotId, type Level,
+  type Vehicle, type TireSet, type ServiceEntry, type VehicleNote, type VehicleMember, type VehicleSpin, type SheetId, type HotspotId, type Level,
 } from '../lib/kartei'
 import { QuartettCard } from '../components/kartei/QuartettCard'
 import { CarSilhouette } from '../components/kartei/CarSilhouette'
 import { Sheet } from '../components/kartei/Sheet'
+import { SpinViewer } from '../components/kartei/SpinViewer'
+import { loadSpinFrames } from '../lib/spin'
 import { DatenSheet, TermineSheet, ReifenSheet, WartungSheet, NotizenSheet, FahrerSheet } from '../components/kartei/sheets'
 import '../components/kartei/kartei.css'
 
@@ -41,15 +43,56 @@ export interface KarteiData {
   service:    ServiceEntry[]
   notes:      VehicleNote[]
   members:    VehicleMember[]
+  spin:       VehicleSpin | null
   isOwner:    boolean
   /** Abschnitte, die der aktuelle Nutzer als Fahrer bearbeiten darf */
   mySections: VehicleSection[]
   userEmail:  string | null
 }
 
-export function KarteiView({ data, onBack, onChanged }: { data: KarteiData; onBack: () => void; onChanged: () => void }) {
+/** Lädt die 360°-Fotos (Offline-Cache zuerst) und zeigt sie als Drehansicht */
+function SpinVisual({ spin, vehicle, active, levels, onSelect }: {
+  spin: VehicleSpin; vehicle: Vehicle; active: HotspotId | null
+  levels: Partial<Record<HotspotId, Level>>; onSelect: (id: HotspotId) => void
+}) {
+  const [frames, setFrames]     = useState<string[] | null>(null)
+  const [progress, setProgress] = useState(0)
+  const [error, setError]       = useState<string | null>(null)
+
+  useEffect(() => {
+    const ctrl = new AbortController()
+    let urls: string[] = []
+    loadSpinFrames(spin, (d, t) => setProgress(d / t), ctrl.signal)
+      .then(u => { urls = u; if (!ctrl.signal.aborted) setFrames(u) })
+      .catch(err => { if (!ctrl.signal.aborted) setError(err instanceof Error ? err.message : String(err)) })
+    return () => { ctrl.abort(); urls.forEach(u => URL.revokeObjectURL(u)) }
+  }, [spin])
+
+  if (error) return <div className="qc-visual-loading text-xs text-gray-500 px-6 text-center">Fotos konnten nicht geladen werden: {error}</div>
+  if (!frames) {
+    return (
+      <div className="qc-visual-loading">
+        <div className="flex flex-col items-center gap-2">
+          <div className="w-32 h-1.5 rounded-full bg-black/10 overflow-hidden">
+            <div className="h-full bg-brand-700 transition-[width]" style={{ width: `${Math.round(progress * 100)}%` }} />
+          </div>
+          <span className="text-[11px] font-semibold text-gray-500">Lade 360°-Fotos …</span>
+        </div>
+      </div>
+    )
+  }
+  return (
+    <SpinViewer frames={frames} bodyType={vehicle.body_type} frontFrame={spin.front_frame} reverse={spin.reverse}
+      aspect={Number(spin.aspect)} active={active} levels={levels} onSelect={onSelect} />
+  )
+}
+
+export function KarteiView({ data, onBack, onChanged, onCapture }: {
+  data: KarteiData; onBack: () => void; onChanged: () => void; onCapture?: () => void
+}) {
   const { vehicle, tires, service, notes, members, isOwner, mySections } = data
   const [sheet, setSheet]     = useState<SheetId | null>(null)
+  const [mode, setMode]       = useState<'fotos' | '3d'>(data.spin ? 'fotos' : '3d')
   const [hotspot, setHotspot] = useState<HotspotId | null>(null)
   const webgl = useMemo(() => hasWebGL(), [])
   const mounted = tires.find(t => t.is_mounted)
@@ -76,15 +119,37 @@ export function KarteiView({ data, onBack, onChanged }: { data: KarteiData; onBa
   }
 
   const silhouette = <div className="qc-visual-loading"><CarSilhouette bodyType={vehicle.body_type} color={vehicle.color} className="w-4/5" /></div>
-  const visual = webgl ? (
+  const canPhoto = isOwner || mySections.includes('fotos')
+  const showFotos = mode === 'fotos' && !!data.spin
+  const model3d = webgl ? (
     <VisualBoundary fallback={silhouette}>
       <Suspense fallback={<div className="qc-visual-loading"><div /></div>}>
         <Car3D bodyType={vehicle.body_type} color={vehicle.color} plate={vehicle.license_plate}
           active={hotspot} levels={levels} onSelect={onHotspot} />
       </Suspense>
-      <span className="qc-visual-hint">Drehen & Punkte antippen</span>
     </VisualBoundary>
   ) : silhouette
+  const visual = (
+    <>
+      {showFotos && data.spin
+        ? <SpinVisual spin={data.spin} vehicle={vehicle} active={hotspot} levels={levels} onSelect={onHotspot} />
+        : model3d}
+      {(showFotos || webgl) && <span className="qc-visual-hint">{showFotos ? 'Wischen & Punkte antippen' : 'Drehen & Punkte antippen'}</span>}
+      {data.spin && (
+        <div className="qc-seg" role="tablist" aria-label="Ansicht">
+          <button type="button" role="tab" aria-selected={mode === 'fotos'} className={mode === 'fotos' ? 'is-on' : ''} onClick={() => setMode('fotos')}>Fotos</button>
+          <button type="button" role="tab" aria-selected={mode === '3d'} className={mode === '3d' ? 'is-on' : ''} onClick={() => setMode('3d')}>3D</button>
+        </div>
+      )}
+      {canPhoto && onCapture && (
+        <button type="button" className="qc-visual-action" onClick={onCapture}
+          aria-label={data.spin ? '360°-Fotos neu aufnehmen' : '360°-Fotos aufnehmen'}>
+          <Camera size={15} strokeWidth={2.4} />
+          {!data.spin && <span>360° aufnehmen</span>}
+        </button>
+      )}
+    </>
+  )
 
   const roleLabel = isOwner ? 'Besitzer' : mySections.length ? 'Fahrer · teilw. Bearbeitung' : 'Fahrer · nur lesen'
   const focusAxle = hotspot?.startsWith('rad-v') ? 'vorne' : hotspot?.startsWith('rad-h') ? 'hinten' : null
@@ -163,6 +228,8 @@ async function loadKartei(vehicleId: string, userId: string, userEmail: string |
     supabase.from('vehicle_notes').select('*').eq('vehicle_id', vehicleId).order('created_at', { ascending: false }),
     supabase.from('vehicle_members').select('*').eq('vehicle_id', vehicleId),
   ])
+  // Optional: fehlt die Foto-Migration noch, bleibt die Kartei trotzdem nutzbar
+  const spin = await supabase.from('vehicle_spins').select('*').eq('vehicle_id', vehicleId).maybeSingle()
   const firstError = [all, tires, service, notes, members].find(r => r.error)?.error
   if (firstError) {
     const missing = /does not exist|schema cache/i.test(firstError.message)
@@ -183,6 +250,7 @@ async function loadKartei(vehicleId: string, userId: string, userEmail: string |
     service:    service.data ?? [],
     notes:      notes.data ?? [],
     members:    isOwner ? memberRows.filter(m => m.user_id !== userId) : [],
+    spin:       spin.error ? null : spin.data,
     isOwner,
     mySections: isOwner ? [] : memberRows.find(m => m.user_id === userId)?.editable_sections ?? [],
     userEmail,
@@ -220,5 +288,6 @@ export const VehicleCard: React.FC = () => {
       </div>
     )
   }
-  return <KarteiView data={result.data} onBack={() => navigate('/garage')} onChanged={() => setReloadKey(k => k + 1)} />
+  return <KarteiView data={result.data} onBack={() => navigate('/garage')} onChanged={() => setReloadKey(k => k + 1)}
+    onCapture={() => navigate(`/fahrzeuge/${vehicleId}/fotos`)} />
 }

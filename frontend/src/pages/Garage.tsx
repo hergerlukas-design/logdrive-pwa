@@ -3,9 +3,23 @@ import { useNavigate } from 'react-router-dom'
 import { ChevronLeft, Plus } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import { BODY_TYPES, FUEL_LABEL, GROUP_COLOR, cardCode, dateLevel, fmtMonth, fmtNum, type Vehicle } from '../lib/kartei'
+import { BODY_TYPES, FUEL_LABEL, GROUP_COLOR, cardCode, dateLevel, fmtMonth, fmtNum, type Vehicle, type VehicleSpin } from '../lib/kartei'
+import { loadSpinPoster } from '../lib/spin'
 import { CarSilhouette } from '../components/kartei/CarSilhouette'
 import '../components/kartei/kartei.css'
+
+/** ¾-Foto aus der 360°-Serie, sonst Silhouette */
+function MiniVisual({ vehicle, spin }: { vehicle: Vehicle; spin?: VehicleSpin }) {
+  const [poster, setPoster] = useState<string | null>(null)
+  useEffect(() => {
+    if (!spin) return
+    let url: string | null = null, cancelled = false
+    loadSpinPoster(spin).then(u => { url = u; if (!cancelled) setPoster(u) }).catch(() => undefined)
+    return () => { cancelled = true; if (url) URL.revokeObjectURL(url) }
+  }, [spin])
+  if (spin && poster) return <img src={poster} alt="" className="absolute inset-0 w-full h-full object-cover" />
+  return <CarSilhouette bodyType={vehicle.body_type} color={vehicle.color} />
+}
 
 /** Übersicht aller Fahrzeuge als Quartett-Kartenstapel */
 export const Garage: React.FC = () => {
@@ -14,12 +28,17 @@ export const Garage: React.FC = () => {
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState<string | null>(null)
+  const [spins, setSpins]       = useState<Record<string, VehicleSpin>>({})
 
   useEffect(() => {
     supabase.from('vehicles').select('*').order('model').then(({ data, error }) => {
       if (error) setError(error.message)
       setVehicles(data ?? [])
       setLoading(false)
+    })
+    // Fehlt die Foto-Migration, bleibt es einfach bei den Silhouetten
+    supabase.from('vehicle_spins').select('*').then(({ data }) => {
+      setSpins(Object.fromEntries((data ?? []).map(s => [s.vehicle_id, s])))
     })
   }, [])
 
@@ -71,7 +90,7 @@ export const Garage: React.FC = () => {
                     </div>
                   </div>
                   <div className="qc-visual">
-                    <CarSilhouette bodyType={v.body_type} color={v.color} />
+                    <MiniVisual vehicle={v} spin={spins[v.id]} />
                     <span className="qc-visual-tag" style={{ fontSize: 8 }}>{BODY_TYPES.find(b => b.value === v.body_type)?.label}</span>
                   </div>
                   <div className="px-2.5 py-2 text-[11px] space-y-1">

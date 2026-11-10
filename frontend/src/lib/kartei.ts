@@ -9,6 +9,7 @@ export type TireInsert    = Database['public']['Tables']['vehicle_tires']['Inser
 export type ServiceEntry  = Database['public']['Tables']['vehicle_service_log']['Row']
 export type VehicleNote   = Database['public']['Tables']['vehicle_notes']['Row']
 export type VehicleMember = Database['public']['Tables']['vehicle_members']['Row']
+export type VehicleSpin   = Database['public']['Tables']['vehicle_spins']['Row']
 
 /** Bereiche der Kartei – jeder öffnet ein eigenes Detail-Blatt */
 export type SheetId = 'daten' | 'termine' | 'reifen' | 'wartung' | 'notizen' | 'fahrer'
@@ -44,7 +45,7 @@ export const SHEET_SECTION: Record<SheetId, VehicleSection | null> = {
 }
 
 export const SECTION_LABEL: Record<VehicleSection, string> = {
-  reifen: 'Reifen', wartung: 'Wartung', notizen: 'Notizen',
+  reifen: 'Reifen', wartung: 'Wartung', notizen: 'Notizen', fotos: '360°-Fotos',
 }
 
 export const BODY_TYPES: { value: BodyType; label: string }[] = [

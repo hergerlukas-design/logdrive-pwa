@@ -160,6 +160,74 @@
   animation: spin 0.9s linear infinite;
 }
 
+/* 360°-Fotoansicht */
+.qc-spin {
+  position: absolute;
+  inset: 0;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+  overflow: hidden;
+}
+.qc-spin:active { cursor: grabbing; }
+.qc-spin img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
+
+/* Umschalter Fotos / 3D und Kamera-Button im Bildfeld */
+.qc-seg {
+  position: absolute;
+  left: 10px;
+  top: 8px;
+  display: flex;
+  padding: 2px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+  z-index: 2;
+}
+.qc-seg button {
+  border: 0;
+  background: transparent;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--qc-muted);
+  cursor: pointer;
+}
+.qc-seg button.is-on { background: var(--qc-group); color: #fff; }
+.qc-visual-action {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  min-width: 30px;
+  justify-content: center;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--qc-group);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+}
+.qc-visual-tag { z-index: 2; }
+
 /* Hotspot-Markierungen über dem 3D-Modell */
 .qc-hotspot {
   --c: #334155;
@@ -414,7 +482,7 @@
 /* ── Retro-Design ─────────────────────────────────────────────────────────── */
 .theme-retro .qc { --qc-paper: #141416; --qc-ink: #ededed; --qc-muted: #a9b0b8; --qc-stripe: rgba(255, 255, 255, 0.03); --qc-line: #2a2a2e; }
 .theme-retro .qc-visual { background: radial-gradient(120% 80% at 50% 100%, rgba(188, 1, 32, 0.25), transparent 60%), radial-gradient(90% 70% at 50% 20%, #1f1f23, #0b0b0c); }
-.theme-retro .qc-visual-hint { background: rgba(20, 20, 22, 0.8); }
+.theme-retro .qc-visual-hint, .theme-retro .qc-seg { background: rgba(20, 20, 22, 0.8); }
 .theme-retro .qc-chip { color: #ff4a5c; }
 .theme-retro .qc-tile, .theme-retro .qc-card, .theme-retro .qc-pressure, .theme-retro .qc-input { background: #141416; border-color: #3a3a40; color: #ededed; }
 .theme-retro .qc-tile strong, .theme-retro .qc-sheet-head h3, .theme-retro .qc-kv > span:last-child, .theme-retro .qc-pressure b { color: #ededed; }

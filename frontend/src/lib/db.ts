@@ -11,12 +11,22 @@ export interface QueueItem {
   lastError?: string
 }
 
+/** Zwischengespeicherte 360°-Fotos (offline verfügbar, Schlüssel = Storage-Pfad) */
+export interface SpinFrame {
+  path:     string
+  spinId:   string
+  blob:     Blob
+  cachedAt: string
+}
+
 class LogDriveDB extends Dexie {
-  queue!: Dexie.Table<QueueItem, number>
+  queue!:      Dexie.Table<QueueItem, number>
+  spinFrames!: Dexie.Table<SpinFrame, string>
 
   constructor() {
     super('LogDriveDB')
     this.version(1).stores({ queue: '++id, status, createdAt' })
+    this.version(2).stores({ queue: '++id, status, createdAt', spinFrames: '&path, spinId' })
   }
 }
 

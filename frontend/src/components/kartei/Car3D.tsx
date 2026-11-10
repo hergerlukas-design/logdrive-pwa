@@ -5,7 +5,7 @@ import * as THREE from 'three'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import type { BodyType } from '../../lib/database.types'
 import { HOTSPOT_LABEL, type HotspotId, type Level } from '../../lib/kartei'
-import { CAR_SPECS, cabinProfile, insetConvex, type CarSpec } from './carSpecs'
+import { CAR_SPECS, cabinProfile, insetConvex, hotspotPoints, type CarSpec } from './carSpecs'
 
 export interface Car3DProps {
   bodyType:  BodyType
@@ -32,22 +32,7 @@ function edgeFrame(a: [number, number], b: [number, number], outward: 1 | -1) {
 }
 
 function hotspotsFor(s: CarSpec): Hotspot[] {
-  const top  = s.clearance + s.bodyHeight
-  const half = s.wheelbase / 2
-  const zW   = s.width / 2 + 0.06
-  const prof = cabinProfile(s)
-  const ws   = edgeFrame(prof[3], prof[2], 1)
-  return [
-    // Fahrtrichtung +x, oben +y → rechts ist +z, links -z
-    { id: 'rad-vl', pos: new THREE.Vector3( half, s.wheelRadius, -zW), normal: new THREE.Vector3(0, 0, -1) },
-    { id: 'rad-vr', pos: new THREE.Vector3( half, s.wheelRadius,  zW), normal: new THREE.Vector3(0, 0,  1) },
-    { id: 'rad-hl', pos: new THREE.Vector3(-half, s.wheelRadius, -zW), normal: new THREE.Vector3(0, 0, -1) },
-    { id: 'rad-hr', pos: new THREE.Vector3(-half, s.wheelRadius,  zW), normal: new THREE.Vector3(0, 0,  1) },
-    { id: 'motor',  pos: new THREE.Vector3((s.cabinFront + s.length / 2) / 2, top + 0.04, 0), normal: new THREE.Vector3(0.35, 1, 0).normalize() },
-    { id: 'scheibe', pos: ws.mid.clone().add(new THREE.Vector3(0, top, 0)).addScaledVector(ws.normal, 0.08), normal: ws.normal },
-    { id: 'kennzeichen', pos: new THREE.Vector3(s.length / 2 + 0.08, s.clearance + s.bodyHeight * 0.32, 0), normal: new THREE.Vector3(1, 0.15, 0).normalize() },
-    { id: 'heck',   pos: new THREE.Vector3(-s.length / 2 - 0.06, s.clearance + s.bodyHeight * 0.78, 0), normal: new THREE.Vector3(-1, 0.25, 0).normalize() },
-  ]
+  return hotspotPoints(s).map(h => ({ id: h.id, pos: new THREE.Vector3(...h.pos), normal: new THREE.Vector3(...h.normal) }))
 }
 
 function usePlateTexture(text: string) {
@@ -123,7 +108,7 @@ function Wheel({ spec, x, side, highlighted, onClick }: {
   )
 }
 
-function Car({ spec, color, plate, active, onSelect }: {
+function CarModel({ spec, color, plate, active, onSelect }: {
   spec: CarSpec; color: string; plate: string; active: HotspotId | null; onSelect: (id: HotspotId) => void
 }) {
   const top    = spec.clearance + spec.bodyHeight
@@ -339,7 +324,7 @@ function Scene({ bodyType, color, plate, active, onSelect, markerRefs }: Car3DPr
         <Lightformer intensity={0.8} position={[0, 1, 6]} scale={[10, 1.5, 1]} color="#ffd9de" />
       </Environment>
 
-      <Car spec={spec} color={color} plate={plate} active={active} onSelect={onSelect} />
+      <CarModel spec={spec} color={color} plate={plate} active={active} onSelect={onSelect} />
       <MarkerProjector hotspots={hotspots} refs={markerRefs} />
       <ContactShadows position={[0, 0.001, 0]} scale={spec.length * 2.2} blur={2.4} opacity={0.55} far={2} resolution={512} />
 
